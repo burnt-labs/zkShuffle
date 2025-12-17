@@ -6,6 +6,7 @@ const https = require("https");
 const HOME_DIR = require("os").homedir();
 export const P0X_DIR = resolve(HOME_DIR, "./.poseidon-zkp/zkShuffle");
 export const P0X_AWS_URL = "https://p0x-labs.s3.amazonaws.com/zkShuffle/";
+
 export function dnld_aws(file_name: string) {
   // fs.mkdir(P0X_DIR, () => {}, { recursive: true })
   fs.mkdir(resolve(HOME_DIR, "./.poseidon-zkp"), () => {});
@@ -14,6 +15,7 @@ export function dnld_aws(file_name: string) {
   fs.mkdir(resolve(P0X_DIR, "./zkey"), () => {});
   return new Promise((reslv) => {
     if (!fs.existsSync(resolve(P0X_DIR, file_name))) {
+      console.log("Circuit not found");
       const file = fs.createWriteStream(resolve(P0X_DIR, file_name));
 
       https.get(P0X_AWS_URL + file_name, (resp: any) => {
