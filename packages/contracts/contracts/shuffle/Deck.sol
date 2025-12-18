@@ -63,23 +63,23 @@ struct Card {
     uint256 Y;
 }
 
-interface IShuffleEncryptVerifier {
-    function verifyProof(
-        uint256[2] memory a,
-        uint256[2][2] memory b,
-        uint256[2] memory c,
-        uint256[] memory input
-    ) external view;
-}
+// interface IShuffleEncryptVerifier {
+//     function verifyProof(
+//         uint256[2] memory a,
+//         uint256[2][2] memory b,
+//         uint256[2] memory c,
+//         uint256[] memory input
+//     ) external view;
+// }
 
-interface IDecryptVerifier {
-    function verifyProof(
-        uint256[2] memory a,
-        uint256[2][2] memory b,
-        uint256[2] memory c,
-        uint256[] memory input
-    ) external view;
-}
+// interface IDecryptVerifier {
+//     function verifyProof(
+//         uint256[2] memory a,
+//         uint256[2][2] memory b,
+//         uint256[2] memory c,
+//         uint256[] memory input
+//     ) external view;
+// }
 
 library zkShuffleCrypto {
     function deckSize(DeckConfig config) internal pure returns (uint256 size) {
