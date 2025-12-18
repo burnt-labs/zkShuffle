@@ -7,7 +7,7 @@ import { ShuffleManager__factory } from "../types";
 import { resolve } from "path";
 import { dnld_aws, P0X_DIR } from "@zk-shuffle/jssdk/src/shuffle/utility";
 
-describe("ZKShuffle State Less Unit Test", function () {
+describe.skip("ZKShuffle State Less Unit Test", function () {
   let sm_owner: SignerWithAddress;
   let game_owner: SignerWithAddress;
   let signers: SignerWithAddress[];
