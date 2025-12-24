@@ -1,9 +1,14 @@
 use crate::bitmaps::*;
+use crate::contract;
 use crate::curve::*;
 use crate::deck::*;
-use crate::types::{CompressedDeck, DeckConfig};
-use cosmwasm_std::StdError;
-use cosmwasm_std::Uint256;
+use crate::msg::{ExecuteMsg, InstantiateMsg};
+use crate::state::GAME_STATES;
+use crate::types::{
+    BaseState, Card, CardDelta, CompressedDeck, DeckConfig, Groth16Proof,
+};
+use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
+use cosmwasm_std::{DepsMut, StdError, Uint256};
 use std::str::FromStr;
 
 // // Helper to create a dummy CompressedDeck for testing
@@ -15,6 +20,43 @@ fn mock_compressed_deck(config: DeckConfig, fill_val: u128) -> CompressedDeck {
         x1: vec![Uint256::from(fill_val + 1); size],
         selector0: BitMap256::from_u128(12345),
         selector1: BitMap256::from_u128(67890),
+    }
+}
+
+fn instantiate_contract(mut deps: DepsMut) {
+    let msg = InstantiateMsg {
+        decrypt_verifier: "decrypt".to_string(),
+        deck5_verifier: "deck5".to_string(),
+        deck30_verifier: "deck30".to_string(),
+        deck52_verifier: "deck52".to_string(),
+    };
+    let info = mock_info("creator", &[]);
+    contract::instantiate(deps, mock_env(), info, msg).unwrap();
+}
+
+fn zero_compressed_deck(config: DeckConfig) -> CompressedDeck {
+    let size = config.num_cards() as usize;
+    CompressedDeck {
+        config,
+        x0: vec![Uint256::zero(); size],
+        x1: vec![Uint256::zero(); size],
+        selector0: BitMap256::zero(),
+        selector1: BitMap256::zero(),
+    }
+}
+
+fn dummy_proof() -> Groth16Proof {
+    Groth16Proof {
+        a: [Uint256::zero(), Uint256::zero()],
+        b: [[Uint256::zero(), Uint256::zero()], [Uint256::zero(), Uint256::zero()]],
+        c: [Uint256::zero(), Uint256::zero()],
+    }
+}
+
+fn dummy_card(x: u64, y: u64) -> Card {
+    Card {
+        x: Uint256::from(x),
+        y: Uint256::from(y),
     }
 }
 
@@ -324,4 +366,313 @@ fn test_recover_y_failure() {
         err_curve.unwrap_err(),
         StdError::generic_err("point not on curve")
     );
+}
+
+#[test]
+fn test_basic_game_flow_shuffle_and_deal() {
+    let mut deps = mock_dependencies();
+    instantiate_contract(deps.as_mut());
+
+    let env = mock_env();
+    let owner = "owner";
+    let player0 = "player0";
+    let player1 = "player1";
+    let deck_config = DeckConfig::Deck5Card;
+
+    contract::execute(
+        deps.as_mut(),
+        env.clone(),
+        mock_info(owner, &[]),
+        ExecuteMsg::CreateGame {
+            num_players: 2,
+            deck_config,
+        },
+    )
+    .unwrap();
+
+    contract::execute(
+        deps.as_mut(),
+        env.clone(),
+        mock_info(owner, &[]),
+        ExecuteMsg::Register {
+            game_id: 1,
+            callback: None,
+        },
+    )
+    .unwrap();
+
+    let pk_x = Uint256::zero();
+    let pk_y = Uint256::one();
+    contract::execute(
+        deps.as_mut(),
+        env.clone(),
+        mock_info(player0, &[]),
+        ExecuteMsg::PlayerRegister {
+            game_id: 1,
+            signing_addr: "player0-sign".to_string(),
+            pk_x: pk_x.clone(),
+            pk_y: pk_y.clone(),
+        },
+    )
+    .unwrap();
+    contract::execute(
+        deps.as_mut(),
+        env.clone(),
+        mock_info(player1, &[]),
+        ExecuteMsg::PlayerRegister {
+            game_id: 1,
+            signing_addr: "player1-sign".to_string(),
+            pk_x,
+            pk_y,
+        },
+    )
+    .unwrap();
+
+    contract::execute(
+        deps.as_mut(),
+        env.clone(),
+        mock_info(owner, &[]),
+        ExecuteMsg::Shuffle {
+            game_id: 1,
+            callback: None,
+        },
+    )
+    .unwrap();
+
+    let compressed = zero_compressed_deck(deck_config);
+    contract::execute(
+        deps.as_mut(),
+        env.clone(),
+        mock_info(player0, &[]),
+        ExecuteMsg::PlayerShuffle {
+            game_id: 1,
+            proof: dummy_proof(),
+            deck: compressed.clone(),
+        },
+    )
+    .unwrap();
+    let mut state = GAME_STATES.load(&deps.storage, 1).unwrap();
+    assert_eq!(state.cur_player_index, 1);
+
+    contract::execute(
+        deps.as_mut(),
+        env.clone(),
+        mock_info(player1, &[]),
+        ExecuteMsg::PlayerShuffle {
+            game_id: 1,
+            proof: dummy_proof(),
+            deck: compressed.clone(),
+        },
+    )
+    .unwrap();
+    state = GAME_STATES.load(&deps.storage, 1).unwrap();
+    assert_eq!(state.cur_player_index, 0);
+    assert_eq!(state.state, BaseState::Shuffle);
+    assert!(state.deck.x1.iter().all(|v| v.is_zero()));
+
+    let mut cards = BitMap256::zero();
+    cards.set(0);
+    cards.set(1);
+    contract::execute(
+        deps.as_mut(),
+        env.clone(),
+        mock_info(owner, &[]),
+        ExecuteMsg::DealCardsTo {
+            game_id: 1,
+            cards: cards.clone(),
+            player_id: 0,
+            callback: None,
+        },
+    )
+    .unwrap();
+
+    state = GAME_STATES.load(&deps.storage, 1).unwrap();
+    assert_eq!(state.state, BaseState::Deal);
+    assert_eq!(state.cur_player_index, 1);
+    assert_eq!(state.deck.cards_to_deal.member_count_up_to(5), 2);
+
+    let proofs = vec![dummy_proof(), dummy_proof()];
+    let decrypted_cards = vec![dummy_card(10, 20), dummy_card(11, 21)];
+    let deltas = vec![
+        CardDelta {
+            delta0: Uint256::one(),
+            delta1: Uint256::one(),
+        };
+        2
+    ];
+    contract::execute(
+        deps.as_mut(),
+        env.clone(),
+        mock_info(player1, &[]),
+        ExecuteMsg::PlayerDealCards {
+            game_id: 1,
+            proofs,
+            decrypted_cards,
+            init_deltas: deltas,
+        },
+    )
+    .unwrap();
+
+    state = GAME_STATES.load(&deps.storage, 1).unwrap();
+    assert_eq!(state.cur_player_index, 0);
+    assert_eq!(state.player_hand[0], 2);
+    assert!(state.deck.decrypt_record[0].get(1));
+}
+
+#[test]
+fn test_open_cards_flow() {
+    let mut deps = mock_dependencies();
+    instantiate_contract(deps.as_mut());
+
+    let env = mock_env();
+    let owner = "owner";
+    let player0 = "player0";
+    let player1 = "player1";
+    let deck_config = DeckConfig::Deck5Card;
+
+    contract::execute(
+        deps.as_mut(),
+        env.clone(),
+        mock_info(owner, &[]),
+        ExecuteMsg::CreateGame {
+            num_players: 2,
+            deck_config,
+        },
+    )
+    .unwrap();
+    contract::execute(
+        deps.as_mut(),
+        env.clone(),
+        mock_info(owner, &[]),
+        ExecuteMsg::Register {
+            game_id: 1,
+            callback: None,
+        },
+    )
+    .unwrap();
+
+    let pk_x = Uint256::zero();
+    let pk_y = Uint256::one();
+    contract::execute(
+        deps.as_mut(),
+        env.clone(),
+        mock_info(player0, &[]),
+        ExecuteMsg::PlayerRegister {
+            game_id: 1,
+            signing_addr: "player0-sign".to_string(),
+            pk_x: pk_x.clone(),
+            pk_y: pk_y.clone(),
+        },
+    )
+    .unwrap();
+    contract::execute(
+        deps.as_mut(),
+        env.clone(),
+        mock_info(player1, &[]),
+        ExecuteMsg::PlayerRegister {
+            game_id: 1,
+            signing_addr: "player1-sign".to_string(),
+            pk_x,
+            pk_y,
+        },
+    )
+    .unwrap();
+
+    contract::execute(
+        deps.as_mut(),
+        env.clone(),
+        mock_info(owner, &[]),
+        ExecuteMsg::Shuffle {
+            game_id: 1,
+            callback: None,
+        },
+    )
+    .unwrap();
+    let compressed = zero_compressed_deck(deck_config);
+    contract::execute(
+        deps.as_mut(),
+        env.clone(),
+        mock_info(player0, &[]),
+        ExecuteMsg::PlayerShuffle {
+            game_id: 1,
+            proof: dummy_proof(),
+            deck: compressed.clone(),
+        },
+    )
+    .unwrap();
+    contract::execute(
+        deps.as_mut(),
+        env.clone(),
+        mock_info(player1, &[]),
+        ExecuteMsg::PlayerShuffle {
+            game_id: 1,
+            proof: dummy_proof(),
+            deck: compressed.clone(),
+        },
+    )
+    .unwrap();
+
+    let mut cards = BitMap256::zero();
+    cards.set(0);
+    contract::execute(
+        deps.as_mut(),
+        env.clone(),
+        mock_info(owner, &[]),
+        ExecuteMsg::DealCardsTo {
+            game_id: 1,
+            cards: cards.clone(),
+            player_id: 0,
+            callback: None,
+        },
+    )
+    .unwrap();
+    let deltas = vec![CardDelta {
+        delta0: Uint256::one(),
+        delta1: Uint256::one(),
+    }];
+    let proofs = vec![dummy_proof()];
+    let decrypted_cards = vec![dummy_card(42, 24)];
+    contract::execute(
+        deps.as_mut(),
+        env.clone(),
+        mock_info(player1, &[]),
+        ExecuteMsg::PlayerDealCards {
+            game_id: 1,
+            proofs,
+            decrypted_cards,
+            init_deltas: deltas,
+        },
+    )
+    .unwrap();
+
+    contract::execute(
+        deps.as_mut(),
+        env.clone(),
+        mock_info(owner, &[]),
+        ExecuteMsg::OpenCards {
+            game_id: 1,
+            player_id: 0,
+            opening: 1,
+            callback: None,
+        },
+    )
+    .unwrap();
+    contract::execute(
+        deps.as_mut(),
+        env.clone(),
+        mock_info(player0, &[]),
+        ExecuteMsg::PlayerOpenCards {
+            game_id: 1,
+            cards,
+            proofs: vec![dummy_proof()],
+            decrypted_cards: vec![dummy_card(99, 100)],
+        },
+    )
+    .unwrap();
+
+    let state = GAME_STATES.load(&deps.storage, 1).unwrap();
+    assert_eq!(state.state, BaseState::Open);
+    assert_eq!(state.cur_player_index, 0);
+    assert_eq!(state.opening, 0);
+    assert_eq!(state.player_hand[0], 0);
 }
