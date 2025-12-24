@@ -83,12 +83,12 @@ pub fn mul_mod_q(a: &Uint256, b: &Uint256) -> Uint256 {
     mod_mul(a, b, &*BABY_JUB_Q)
 }
 
-fn mod_add(a: &Uint256, b: &Uint256, modulus: &Uint256) -> Uint256 {
+pub fn mod_add(a: &Uint256, b: &Uint256, modulus: &Uint256) -> Uint256 {
     let sum = Uint512::from(*a) + Uint512::from(*b);
     reduce(sum, modulus)
 }
 
-fn mod_sub(a: &Uint256, b: &Uint256, modulus: &Uint256) -> Uint256 {
+pub fn mod_sub(a: &Uint256, b: &Uint256, modulus: &Uint256) -> Uint256 {
     if a >= b {
         let diff = Uint512::from(*a) - Uint512::from(*b);
         reduce(diff, modulus)
@@ -99,12 +99,12 @@ fn mod_sub(a: &Uint256, b: &Uint256, modulus: &Uint256) -> Uint256 {
     }
 }
 
-fn mod_mul(a: &Uint256, b: &Uint256, modulus: &Uint256) -> Uint256 {
+pub fn mod_mul(a: &Uint256, b: &Uint256, modulus: &Uint256) -> Uint256 {
     let product = Uint512::from(*a) * Uint512::from(*b);
     reduce(product, modulus)
 }
 
-fn mod_inverse(value: &Uint256, modulus: &Uint256) -> StdResult<Uint256> {
+pub fn mod_inverse(value: &Uint256, modulus: &Uint256) -> StdResult<Uint256> {
     if value.is_zero() {
         return Err(StdError::generic_err("inverse undefined"));
     }
