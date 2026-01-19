@@ -4,9 +4,7 @@ use crate::curve::*;
 use crate::deck::*;
 use crate::msg::{ExecuteMsg, InstantiateMsg};
 use crate::state::GAME_STATES;
-use crate::types::{
-    BaseState, Card, CardDelta, CompressedDeck, DeckConfig, Groth16Proof,
-};
+use crate::types::{BaseState, Card, CardDelta, CompressedDeck, DeckConfig, Groth16Proof};
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
 use cosmwasm_std::{DepsMut, StdError, Uint256};
 use std::str::FromStr;
@@ -48,7 +46,10 @@ fn zero_compressed_deck(config: DeckConfig) -> CompressedDeck {
 fn dummy_proof() -> Groth16Proof {
     Groth16Proof {
         a: [Uint256::zero(), Uint256::zero()],
-        b: [[Uint256::zero(), Uint256::zero()], [Uint256::zero(), Uint256::zero()]],
+        b: [
+            [Uint256::zero(), Uint256::zero()],
+            [Uint256::zero(), Uint256::zero()],
+        ],
         c: [Uint256::zero(), Uint256::zero()],
     }
 }
@@ -201,8 +202,6 @@ fn test_shuffle_public_input_layout() {
 
 // Helper to generate a known valid point on BabyJubJub
 // Base point (Generator) values from standard BabyJubJub
-// Helper to generate a known valid point on BabyJubJub
-// Base point (Generator) values from standard BabyJubJub specs (EIP-2494)
 fn generator() -> (Uint256, Uint256) {
     (
         Uint256::from_str(

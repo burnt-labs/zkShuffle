@@ -47,6 +47,10 @@ once_cell = "1.18.0"
 schemars = "0.8.12"
 serde = { version = "1.0.195", default-features = false, features = ["derive"] }
 thiserror = "1.0.50"
+cosmos-sdk-proto = { package = "cosmos-sdk-proto", git = "https://github.com/burnt-labs/cosmos-rust", branch = "feat/xion-zk", default-features = false, features = [
+  "cosmwasm",
+  "xion",
+] }
 
 [dev-dependencies]
 cw-multi-test = "0.17.0"

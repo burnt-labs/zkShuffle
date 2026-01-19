@@ -1,3 +1,5 @@
+// contract for the game of poker
+
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
@@ -6,12 +8,18 @@ use cosmwasm_std::{
 };
 use cw2::set_contract_version;
 
+use cosmos_sdk_proto::{
+    prost::Message,
+    traits::MessageExt,
+    xion::v1::zk::{ProofVerifyResponse, QueryProofRequest},
+};
+
 use crate::bitmaps::BitMap256;
 use crate::curve;
 use crate::deck::{card_index_from_x1, shuffle_public_input};
 use crate::error::ContractError;
 use crate::msg::{
-    AggregatedPkResponse, CardValueResponse, DecryptRecordResponse, DeckResponse, ExecuteMsg,
+    AggregatedPkResponse, CardValueResponse, DeckResponse, DecryptRecordResponse, ExecuteMsg,
     GameInfoResponse, GameStateResponse, InstantiateMsg, NumCardsResponse, PlayerIndexResponse,
     QueryMsg,
 };
@@ -67,12 +75,12 @@ pub fn execute(
             pk_x,
             pk_y,
         } => execute_player_register(deps, info, game_id, signing_addr, pk_x, pk_y),
-        ExecuteMsg::Shuffle { game_id, callback } => {
-            execute_shuffle(deps, info, game_id, callback)
-        }
-        ExecuteMsg::PlayerShuffle { game_id, proof, deck } => {
-            execute_player_shuffle(deps, info, game_id, proof, deck)
-        }
+        ExecuteMsg::Shuffle { game_id, callback } => execute_shuffle(deps, info, game_id, callback),
+        ExecuteMsg::PlayerShuffle {
+            game_id,
+            proof,
+            deck,
+        } => execute_player_shuffle(deps, info, game_id, proof, deck),
         ExecuteMsg::DealCardsTo {
             game_id,
             cards,
@@ -84,14 +92,7 @@ pub fn execute(
             proofs,
             decrypted_cards,
             init_deltas,
-        } => execute_player_deal_cards(
-            deps,
-            info,
-            game_id,
-            proofs,
-            decrypted_cards,
-            init_deltas,
-        ),
+        } => execute_player_deal_cards(deps, info, game_id, proofs, decrypted_cards, init_deltas),
         ExecuteMsg::OpenCards {
             game_id,
             player_id,
@@ -196,8 +197,7 @@ fn execute_player_register(
         state.aggregate_pk_x = pk_x;
         state.aggregate_pk_y = pk_y;
     } else {
-        let (x, y) =
-            curve::point_add(&state.aggregate_pk_x, &state.aggregate_pk_y, &pk_x, &pk_y)?;
+        let (x, y) = curve::point_add(&state.aggregate_pk_x, &state.aggregate_pk_y, &pk_x, &pk_y)?;
         state.aggregate_pk_x = x;
         state.aggregate_pk_y = y;
     }
@@ -333,11 +333,10 @@ fn execute_player_deal_cards(
     ensure_state(game_id, &state, BaseState::Deal)?;
     ensure_player_turn(&state, &info.sender, game_id)?;
 
-    let num_to_deal =
-        state
-            .deck
-            .cards_to_deal
-            .member_count_up_to(game_info.num_cards as u32);
+    let num_to_deal = state
+        .deck
+        .cards_to_deal
+        .member_count_up_to(game_info.num_cards as u32);
     if proofs.len() as u32 != num_to_deal
         || decrypted_cards.len() as u32 != num_to_deal
         || init_deltas.len() as u32 != num_to_deal
@@ -466,10 +465,7 @@ fn execute_player_open_cards(
         }
     }
 
-    if let Some(hand) = state
-        .player_hand
-        .get_mut(state.cur_player_index as usize)
-    {
+    if let Some(hand) = state.player_hand.get_mut(state.cur_player_index as usize) {
         *hand -= number_to_open;
     }
     state.opening = 0;
@@ -542,16 +538,10 @@ fn update_decrypted_card(
     if state.deck.decrypt_record[card_index].is_zero() {
         let selector0 = state.deck.selector0.get(card_index as u32);
         let selector1 = state.deck.selector1.get(card_index as u32);
-        state.deck.y0[card_index] = curve::recover_y(
-            &state.deck.x0[card_index],
-            &init_delta.delta0,
-            selector0,
-        )?;
-        state.deck.y1[card_index] = curve::recover_y(
-            &state.deck.x1[card_index],
-            &init_delta.delta1,
-            selector1,
-        )?;
+        state.deck.y0[card_index] =
+            curve::recover_y(&state.deck.x0[card_index], &init_delta.delta0, selector0)?;
+        state.deck.y1[card_index] =
+            curve::recover_y(&state.deck.x1[card_index], &init_delta.delta1, selector1)?;
     }
 
     state.deck.x1[card_index] = decrypted_card.x.clone();
@@ -636,7 +626,10 @@ fn store_callback(
     }
 }
 
-fn take_callback_msg(storage: &mut dyn Storage, game_id: u64) -> Result<Option<CosmosMsg>, ContractError> {
+fn take_callback_msg(
+    storage: &mut dyn Storage,
+    game_id: u64,
+) -> Result<Option<CosmosMsg>, ContractError> {
     let callback = NEXT_CALLBACK.may_load(storage, game_id)?;
     if let Some(msg) = callback {
         let target = ACTIVE_GAMES
@@ -663,19 +656,19 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::CurPlayerIndex { game_id } => {
             to_json_binary(&query_cur_player_index(deps, game_id)?)
         }
-        QueryMsg::DecryptRecord { game_id, card_index } => {
-            to_json_binary(&query_decrypt_record(deps, game_id, card_index)?)
-        }
-        QueryMsg::AggregatedPk { game_id } => {
-            to_json_binary(&query_aggregated_pk(deps, game_id)?)
-        }
+        QueryMsg::DecryptRecord {
+            game_id,
+            card_index,
+        } => to_json_binary(&query_decrypt_record(deps, game_id, card_index)?),
+        QueryMsg::AggregatedPk { game_id } => to_json_binary(&query_aggregated_pk(deps, game_id)?),
         QueryMsg::Deck { game_id } => to_json_binary(&query_deck(deps, game_id)?),
         QueryMsg::PlayerIndex { game_id, address } => {
             to_json_binary(&query_player_index(deps, game_id, address)?)
         }
-        QueryMsg::CardValue { game_id, card_index } => {
-            to_json_binary(&query_card_value(deps, game_id, card_index)?)
-        }
+        QueryMsg::CardValue {
+            game_id,
+            card_index,
+        } => to_json_binary(&query_card_value(deps, game_id, card_index)?),
     }
 }
 
@@ -757,11 +750,7 @@ fn query_deck(deps: Deps, game_id: u64) -> StdResult<DeckResponse> {
     })
 }
 
-fn query_player_index(
-    deps: Deps,
-    game_id: u64,
-    address: String,
-) -> StdResult<PlayerIndexResponse> {
+fn query_player_index(deps: Deps, game_id: u64, address: String) -> StdResult<PlayerIndexResponse> {
     let addr = deps.api.addr_validate(&address)?;
     let state = GAME_STATES.load(deps.storage, game_id)?;
     let mut index = None;
@@ -782,19 +771,14 @@ fn query_player_index(
     Ok(PlayerIndexResponse { index })
 }
 
-fn query_card_value(
-    deps: Deps,
-    game_id: u64,
-    card_index: u32,
-) -> StdResult<CardValueResponse> {
+fn query_card_value(deps: Deps, game_id: u64, card_index: u32) -> StdResult<CardValueResponse> {
     let info = GAME_INFOS.load(deps.storage, game_id)?;
     let state = GAME_STATES.load(deps.storage, game_id)?;
     let idx = card_index as usize;
     if idx >= state.deck.x1.len() {
         return Ok(CardValueResponse { value: None });
     }
-    let decrypted = state.deck.decrypt_record[idx]
-        .member_count_up_to(info.num_players as u32)
+    let decrypted = state.deck.decrypt_record[idx].member_count_up_to(info.num_players as u32)
         == info.num_players as u32;
     if !decrypted {
         return Ok(CardValueResponse { value: None });

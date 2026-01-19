@@ -181,3 +181,15 @@ Example output:
 ```
 xion1v6476wrjmw8fhsh20rl4h6jadeh5sdvlhrt8jyk2szrl3pdj4musyxj6gl
 ```
+
+/\*\*
+
+-
+-
+- let verification_response: Binary = deps.querier.query_grpc(
+  "/xion.zk.v1.Query/ProofVerify".to_string(),
+  Binary::from(verification_request_bytes),
+  )?;
+
+  let res: ProofVerifyResponse = ProofVerifyResponse::decode(verification_response.as_slice())?;
+  \*/
