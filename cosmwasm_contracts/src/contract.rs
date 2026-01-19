@@ -11,7 +11,7 @@ use cw2::set_contract_version;
 use cosmos_sdk_proto::{
     prost::Message,
     traits::MessageExt,
-    xion::v1::zk::{ProofVerifyResponse, QueryProofRequest},
+    xion::v1::zk::{ProofVerifyResponse, QueryVerifyRequest},
 };
 
 use crate::bitmaps::BitMap256;
