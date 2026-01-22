@@ -8,13 +8,6 @@ use cosmwasm_std::{
 };
 use cw2::set_contract_version;
 
-use cosmos_sdk_proto::{
-    prost::Message,
-    traits::MessageExt,
-    xion::v1::zk::{ProofVerifyResponse, QueryVerifyRequest},
-};
-
-use crate::bitmaps::BitMap256;
 use crate::curve;
 use crate::deck::{card_index_from_x1, shuffle_public_input};
 use crate::error::ContractError;
@@ -30,6 +23,7 @@ use crate::state::{
 use crate::types::{
     BaseState, BitMap256 as BitMap, Card, CardDelta, CompressedDeck, DeckConfig, Groth16Proof,
 };
+use crate::zkshuffle::{verify_decrypt_proof, verify_shuffle_proof};
 
 const CONTRACT_NAME: &str = "crates.io:zk-shuffle";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -111,7 +105,7 @@ pub fn execute(
 }
 
 fn execute_create_game(
-    mut deps: DepsMut,
+    deps: DepsMut,
     info: MessageInfo,
     num_players: u8,
     deck_config: DeckConfig,
@@ -148,7 +142,7 @@ fn execute_create_game(
 }
 
 fn execute_register(
-    mut deps: DepsMut,
+    deps: DepsMut,
     info: MessageInfo,
     game_id: u64,
     callback: Option<Binary>,
@@ -167,7 +161,7 @@ fn execute_register(
 }
 
 fn execute_player_register(
-    mut deps: DepsMut,
+    deps: DepsMut,
     info: MessageInfo,
     game_id: u64,
     signing_addr: String,
@@ -221,7 +215,7 @@ fn execute_player_register(
 }
 
 fn execute_shuffle(
-    mut deps: DepsMut,
+    deps: DepsMut,
     info: MessageInfo,
     game_id: u64,
     callback: Option<Binary>,
@@ -241,10 +235,10 @@ fn execute_shuffle(
 }
 
 fn execute_player_shuffle(
-    mut deps: DepsMut,
+    deps: DepsMut,
     info: MessageInfo,
     game_id: u64,
-    _proof: Groth16Proof,
+    proof: Groth16Proof,
     deck: CompressedDeck,
 ) -> Result<Response, ContractError> {
     let game_info = load_info(deps.storage, game_id)?;
@@ -253,13 +247,27 @@ fn execute_player_shuffle(
     ensure_player_turn(&state, &info.sender, game_id)?;
 
     let old_compressed = state.deck.compressed();
-    shuffle_public_input(
+    let public_inputs = shuffle_public_input(
         &deck,
         &old_compressed,
         &state.nonce,
         &state.aggregate_pk_x,
         &state.aggregate_pk_y,
     )?;
+
+    // Verify the shuffle proof using XION's zk module
+    let verifier_name = verifier_name_for_deck(game_info.deck_config);
+    let proof_tuple = (proof.a, proof.b, proof.c);
+    let verified = verify_shuffle_proof(
+        deps.as_ref(),
+        &proof_tuple,
+        &public_inputs,
+        &verifier_name,
+    )?;
+    if !verified {
+        return Err(ContractError::InvalidProof);
+    }
+
     state.deck.set_from_compressed(deck)?;
 
     let num_players = state.player_addrs.len() as u32;
@@ -285,7 +293,7 @@ fn execute_player_shuffle(
 }
 
 fn execute_deal_cards_to(
-    mut deps: DepsMut,
+    deps: DepsMut,
     info: MessageInfo,
     game_id: u64,
     cards: BitMap,
@@ -321,7 +329,7 @@ fn execute_deal_cards_to(
 }
 
 fn execute_player_deal_cards(
-    mut deps: DepsMut,
+    deps: DepsMut,
     info: MessageInfo,
     game_id: u64,
     proofs: Vec<Groth16Proof>,
@@ -348,6 +356,7 @@ fn execute_player_deal_cards(
     for cid in 0..(game_info.num_cards as usize) {
         if state.deck.cards_to_deal.get(cid as u32) {
             update_decrypted_card(
+                deps.as_ref(),
                 &mut state,
                 cid,
                 &proofs[counter],
@@ -394,7 +403,7 @@ fn execute_player_deal_cards(
 }
 
 fn execute_open_cards(
-    mut deps: DepsMut,
+    deps: DepsMut,
     info: MessageInfo,
     game_id: u64,
     player_id: u32,
@@ -424,7 +433,7 @@ fn execute_open_cards(
 }
 
 fn execute_player_open_cards(
-    mut deps: DepsMut,
+    deps: DepsMut,
     info: MessageInfo,
     game_id: u64,
     cards: BitMap,
@@ -452,6 +461,7 @@ fn execute_player_open_cards(
     for cid in 0..(game_info.num_cards as usize) {
         if cards.get(cid as u32) {
             update_decrypted_card(
+                deps.as_ref(),
                 &mut state,
                 cid,
                 &proofs[counter],
@@ -485,7 +495,7 @@ fn execute_player_open_cards(
 }
 
 fn execute_end_game(
-    mut deps: DepsMut,
+    deps: DepsMut,
     info: MessageInfo,
     game_id: u64,
 ) -> Result<Response, ContractError> {
@@ -502,7 +512,7 @@ fn execute_end_game(
 }
 
 fn execute_error(
-    mut deps: DepsMut,
+    deps: DepsMut,
     info: MessageInfo,
     game_id: u64,
     callback: Option<Binary>,
@@ -525,9 +535,10 @@ fn execute_error(
 }
 
 fn update_decrypted_card(
+    deps: Deps,
     state: &mut ShuffleGameState,
     card_index: usize,
-    _proof: &Groth16Proof,
+    proof: &Groth16Proof,
     decrypted_card: &Card,
     init_delta: &CardDelta,
 ) -> Result<(), ContractError> {
@@ -542,6 +553,32 @@ fn update_decrypted_card(
             curve::recover_y(&state.deck.x0[card_index], &init_delta.delta0, selector0)?;
         state.deck.y1[card_index] =
             curve::recover_y(&state.deck.x1[card_index], &init_delta.delta1, selector1)?;
+    }
+
+    // Build public inputs for decrypt proof verification
+    // Format: [decryptedCard.X, decryptedCard.Y, deck.X0[cardIndex], deck.Y0[cardIndex],
+    //         deck.X1[cardIndex], deck.Y1[cardIndex], playerPkX[curPlayerIndex], playerPKY[curPlayerIndex]]
+    let public_inputs = vec![
+        decrypted_card.x.clone(),
+        decrypted_card.y.clone(),
+        state.deck.x0[card_index].clone(),
+        state.deck.y0[card_index].clone(),
+        state.deck.x1[card_index].clone(),
+        state.deck.y1[card_index].clone(),
+        state.player_pk_x[state.cur_player_index as usize].clone(),
+        state.player_pk_y[state.cur_player_index as usize].clone(),
+    ];
+
+    // Verify the decrypt proof using XION's zk module
+    let proof_tuple = (proof.a.clone(), proof.b.clone(), proof.c.clone());
+    let verified = verify_decrypt_proof(
+        deps,
+        &proof_tuple,
+        &public_inputs,
+        "decrypt_verifier",
+    )?;
+    if !verified {
+        return Err(ContractError::InvalidProof);
     }
 
     state.deck.x1[card_index] = decrypted_card.x.clone();
@@ -786,4 +823,14 @@ fn query_card_value(deps: Deps, game_id: u64, card_index: u32) -> StdResult<Card
 
     let value = card_index_from_x1(&state.deck.x1[idx], info.deck_config);
     Ok(CardValueResponse { value })
+}
+
+/// Returns the verifier name for a given deck configuration.
+/// These names should match the verifier keys registered in XION's zk module.
+fn verifier_name_for_deck(deck_config: DeckConfig) -> &'static str {
+    match deck_config {
+        DeckConfig::Deck5Card => "shuffle_encrypt_5card",
+        DeckConfig::Deck30Card => "shuffle_encrypt_30card",
+        DeckConfig::Deck52Card => "shuffle_encrypt_52card",
+    }
 }

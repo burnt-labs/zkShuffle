@@ -1277,6 +1277,7 @@ dependencies = [
  "once_cell",
  "schemars",
  "serde",
+ "serde_json",
  "thiserror",
 ]
 

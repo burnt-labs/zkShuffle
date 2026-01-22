@@ -44,4 +44,7 @@ pub enum ContractError {
 
     #[error("operation not supported")]
     NotSupported,
+
+    #[error("proof verification failed")]
+    InvalidProof,
 }

@@ -8,5 +8,6 @@ pub mod state;
 #[cfg(test)]
 pub mod tests;
 pub mod types;
+pub mod zkshuffle;
 
 pub use crate::error::ContractError;
