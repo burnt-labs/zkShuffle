@@ -1,27 +1,23 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{Binary, Uint256};
+use cosmwasm_std::Uint256;
 
-use crate::types::{
-    BaseState, BitMap256, Card, CardDelta, CompressedDeck, DeckConfig, Groth16Proof,
-};
+use crate::types::{BaseState, BitMap256, Card, CardDelta, CompressedDeck, Groth16Proof};
 
 #[cw_serde]
 pub struct InstantiateMsg {
-    pub decrypt_verifier: String,
-    pub deck5_verifier: String,
-    pub deck30_verifier: String,
-    pub deck52_verifier: String,
+    // No verifier addresses needed - using module-level verifiers
+    // vkey_id: 3 for "shuffle_encrypt"
+    // vkey_id: 2 for "decrypt"
 }
 
 #[cw_serde]
 pub enum ExecuteMsg {
     CreateGame {
         num_players: u8,
-        deck_config: DeckConfig,
+        // Simplified: always use 52-card deck
     },
     Register {
         game_id: u64,
-        callback: Option<Binary>,
     },
     PlayerRegister {
         game_id: u64,
@@ -31,7 +27,6 @@ pub enum ExecuteMsg {
     },
     Shuffle {
         game_id: u64,
-        callback: Option<Binary>,
     },
     PlayerShuffle {
         game_id: u64,
@@ -42,7 +37,6 @@ pub enum ExecuteMsg {
         game_id: u64,
         cards: BitMap256,
         player_id: u32,
-        callback: Option<Binary>,
     },
     PlayerDealCards {
         game_id: u64,
@@ -54,7 +48,6 @@ pub enum ExecuteMsg {
         game_id: u64,
         player_id: u32,
         opening: u8,
-        callback: Option<Binary>,
     },
     PlayerOpenCards {
         game_id: u64,
@@ -67,7 +60,6 @@ pub enum ExecuteMsg {
     },
     Error {
         game_id: u64,
-        callback: Option<Binary>,
     },
 }
 
@@ -98,8 +90,7 @@ pub enum QueryMsg {
 pub struct GameInfoResponse {
     pub num_cards: u8,
     pub num_players: u8,
-    pub encrypt_verifier: String,
-    pub deck_config: DeckConfig,
+    // No verifier address needed - using module-level
 }
 
 #[cw_serde]
@@ -112,7 +103,6 @@ pub struct GameStateResponse {
     pub nonce: Uint256,
     pub player_addrs: Vec<String>,
     pub signing_addrs: Vec<String>,
-    pub deck_config: DeckConfig,
     pub player_hand: Vec<u32>,
 }
 

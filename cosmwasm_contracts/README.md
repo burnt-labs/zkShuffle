@@ -1,6 +1,6 @@
-# **CW Counter Starter Contract**
+# ZK Shuffle Contract
 
-This is a basic CosmWasm smart contract that allows you to set a counter and then either **increment** or **reset** it. You can also query the current counter value.
+This is a basic CosmWasm smart contract that allows you to shuffle and ecnrypt using zk shuffle circuits and decrypt.
 
 ---
 
@@ -14,17 +14,6 @@ Before deploying the contract, ensure you have the following:
 
 2. **Docker**  
    Install and run [Docker](https://www.docker.com/get-started), as it is required to compile the contract.
-
----
-
-## **Deploy and Interact with the Contract**
-
-### **Step 1: Clone the Repository**
-
-```sh
-git clone https://github.com/burnt-labs/cw-counter
-cd cw-counter
-```
 
 ---
 
@@ -46,18 +35,14 @@ docker run --rm -v "$(pwd)":/code \
 The optimized contract will be stored as:
 
 ```
-cw-counter/artifacts/cw_counter.wasm
+./artifacts/zkshuffle_cw.wasm
 ```
 
 ---
 
 ### **Step 3: Upload the Bytecode to the Blockchain**
 
-First, set your wallet address:
-
-```sh
-WALLET="your-wallet-address-here"
-```
+First load your env file using `source .env.local`
 
 Now, upload the contract to the blockchain:
 
@@ -83,8 +68,7 @@ Example output:
 ```json
 {
   "height": "0",
-  "txhash": "B557242F3BBF2E68D228EBF6A792C3C617C8C8C984440405A578FBBB8A385035",
-  ...
+  "txhash": "B557242F3BBF2E68D228EBF6A792C3C617C8C8C984440405A578FBBB8A385035"
 }
 ```
 
@@ -212,3 +196,24 @@ xiond tx wasm execute $CONTRACT_ADDRESS '{"create_game": {"num_players": 2, "dec
   let res: ProofVerifyResponse = ProofVerifyResponse::decode(verification_response.as_slice())?;
   \*/
 ````
+
+```
+NEXT_PUBLIC_CONTRACT_ADDRESS="xion13wfpzsm45wwl2qnqdxp4je07pyxn3aqlw02jsn2m336plmrk25uspxznxh"
+NEXT_PUBLIC_TREASURY_ADDRESS="xion1yssz0jv60fxu75e22l8gry7849qr0pk7vdxtn9882xtj62swsvsq34mg3q"
+NEXT_PUBLIC_RPC_URL="https://rpc.xion-testnet-2.burnt.com:443"
+NEXT_PUBLIC_REST_URL="https://api.xion-testnet-2.burnt.com"
+RPC_URL="https://rpc.xion-testnet-2.burnt.com:443"
+ACC1=xion1n44pwyfczvkutwpn87e2mn2d0udht5n8mjp5yg
+WALLET=xion1n44pwyfczvkutwpn87e2mn2d0udht5n8mjp5yg
+ACC2=xion14gv06unzqwmg8x6ktpd0zskt50m39nzqynr4zs
+TX_HASH=F0A6E3F5A28A9C6B5ACCCE763027E4D8632C08E7A453F7094F1594AB22F449AF
+CODE_ID=1886
+CHAIN_ID=xion-testnet-2
+DEPLOY_TXHASH=AB9B9235CE7B6F36AC01168D0B1C59A68CBC5DB8BC60FA0E328A4F3376509991
+CONTRACT_ADDRESS=xion1ax0j60ry0wj9f0ze8l54dqzw22g93a5xfaw0jv90p06mcn569g5sm3ln7l
+SATYAM2=xion1g6u0d3e025u2vkvum0c8npdx4jnc4sn2egt7u4
+SATYAM3=xion13uvuntkvstwlqptd4hmn8pqv3pe0458l459lr8
+SATYAM4=xion1aqgk0s3vm9qkec52djw93fel9e5cfll8gezmuq
+MSG='{ "decrypt_verifier": "xion14gv06unzqwmg8x6ktpd0zskt50m39nzqynr4zs","deck5_verifier": "xion14gv06unzqwmg8x6ktpd0zskt50m39nzqynr4zs","deck30_verifier": "xion14gv06unzqwmg8x6ktpd0zskt50m39nzqynr4zs","deck52_verifier": "xion14gv06unzqwmg8x6ktpd0zskt50m39nzqynr4zs"}'
+
+```

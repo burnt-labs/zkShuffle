@@ -1,10 +1,10 @@
-// contract for the game of poker
+// Simplified contract for testing shuffle_encrypt and decrypt verification
 
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_json_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Response, StdError,
-    StdResult, Storage, Uint256, WasmMsg,
+    to_json_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult,
+    Storage, Uint256,
 };
 use cw2::set_contract_version;
 
@@ -16,13 +16,8 @@ use crate::msg::{
     GameInfoResponse, GameStateResponse, InstantiateMsg, NumCardsResponse, PlayerIndexResponse,
     QueryMsg,
 };
-use crate::state::{
-    Config, GameInfo, ShuffleGameState, ACTIVE_GAMES, CONFIG, GAME_INFOS, GAME_STATES,
-    NEXT_CALLBACK,
-};
-use crate::types::{
-    BaseState, BitMap256 as BitMap, Card, CardDelta, CompressedDeck, DeckConfig, Groth16Proof,
-};
+use crate::state::{Config, GameInfo, ShuffleGameState, ACTIVE_GAMES, CONFIG, GAME_INFOS, GAME_STATES};
+use crate::types::{BaseState, BitMap256 as BitMap, Card, CardDelta, CompressedDeck, Groth16Proof};
 use crate::zkshuffle::{verify_decrypt_proof, verify_shuffle_proof};
 
 const CONTRACT_NAME: &str = "crates.io:zk-shuffle";
@@ -33,15 +28,9 @@ pub fn instantiate(
     deps: DepsMut,
     _env: Env,
     _info: MessageInfo,
-    msg: InstantiateMsg,
+    _msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
-    let config = Config {
-        decrypt_verifier: deps.api.addr_validate(&msg.decrypt_verifier)?,
-        deck5_verifier: deps.api.addr_validate(&msg.deck5_verifier)?,
-        deck30_verifier: deps.api.addr_validate(&msg.deck30_verifier)?,
-        deck52_verifier: deps.api.addr_validate(&msg.deck52_verifier)?,
-        next_game_id: 0,
-    };
+    let config = Config { next_game_id: 0 };
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     CONFIG.save(deps.storage, &config)?;
 
@@ -56,20 +45,15 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::CreateGame {
-            num_players,
-            deck_config,
-        } => execute_create_game(deps, info, num_players, deck_config),
-        ExecuteMsg::Register { game_id, callback } => {
-            execute_register(deps, info, game_id, callback)
-        }
+        ExecuteMsg::CreateGame { num_players } => execute_create_game(deps, info, num_players),
+        ExecuteMsg::Register { game_id } => execute_register(deps, info, game_id),
         ExecuteMsg::PlayerRegister {
             game_id,
             signing_addr,
             pk_x,
             pk_y,
         } => execute_player_register(deps, info, game_id, signing_addr, pk_x, pk_y),
-        ExecuteMsg::Shuffle { game_id, callback } => execute_shuffle(deps, info, game_id, callback),
+        ExecuteMsg::Shuffle { game_id } => execute_shuffle(deps, info, game_id),
         ExecuteMsg::PlayerShuffle {
             game_id,
             proof,
@@ -79,8 +63,7 @@ pub fn execute(
             game_id,
             cards,
             player_id,
-            callback,
-        } => execute_deal_cards_to(deps, info, game_id, cards, player_id, callback),
+        } => execute_deal_cards_to(deps, info, game_id, cards, player_id),
         ExecuteMsg::PlayerDealCards {
             game_id,
             proofs,
@@ -91,8 +74,7 @@ pub fn execute(
             game_id,
             player_id,
             opening,
-            callback,
-        } => execute_open_cards(deps, info, game_id, player_id, opening, callback),
+        } => execute_open_cards(deps, info, game_id, player_id, opening),
         ExecuteMsg::PlayerOpenCards {
             game_id,
             cards,
@@ -100,7 +82,7 @@ pub fn execute(
             decrypted_cards,
         } => execute_player_open_cards(deps, info, game_id, cards, proofs, decrypted_cards),
         ExecuteMsg::EndGame { game_id } => execute_end_game(deps, info, game_id),
-        ExecuteMsg::Error { game_id, callback } => execute_error(deps, info, game_id, callback),
+        ExecuteMsg::Error { game_id } => execute_error(deps, info, game_id),
     }
 }
 
@@ -108,7 +90,6 @@ fn execute_create_game(
     deps: DepsMut,
     info: MessageInfo,
     num_players: u8,
-    deck_config: DeckConfig,
 ) -> Result<Response, ContractError> {
     if num_players == 0 {
         return Err(ContractError::InvalidPlayer);
@@ -118,17 +99,11 @@ fn execute_create_game(
     let game_id = config.next_game_id + 1;
     config.next_game_id = game_id;
 
-    let encrypt_verifier = config.deck_verifier(deck_config);
-    let num_cards = deck_config.num_cards() as u8;
+    let num_cards = 52u8;  // Fixed at 52 cards
 
-    let game_info = GameInfo {
-        deck_config,
-        num_cards,
-        num_players,
-        encrypt_verifier,
-    };
+    let game_info = GameInfo { num_cards, num_players };
 
-    let state = ShuffleGameState::new(deck_config, num_players);
+    let state = ShuffleGameState::new(num_players);
 
     GAME_INFOS.save(deps.storage, game_id, &game_info)?;
     GAME_STATES.save(deps.storage, game_id, &state)?;
@@ -145,7 +120,6 @@ fn execute_register(
     deps: DepsMut,
     info: MessageInfo,
     game_id: u64,
-    callback: Option<Binary>,
 ) -> Result<Response, ContractError> {
     ensure_game_owner(deps.storage, game_id, &info.sender)?;
     let mut state = load_state(deps.storage, game_id)?;
@@ -153,7 +127,6 @@ fn execute_register(
 
     state.state = BaseState::Registration;
     GAME_STATES.save(deps.storage, game_id, &state)?;
-    store_callback(deps.storage, game_id, callback)?;
 
     Ok(Response::new()
         .add_attribute("action", "register")
@@ -196,29 +169,22 @@ fn execute_player_register(
         state.aggregate_pk_y = y;
     }
 
-    let mut resp = Response::new()
-        .add_attribute("action", "player_register")
-        .add_attribute("game_id", game_id.to_string())
-        .add_attribute("player_index", pid.to_string());
-
     if state.player_addrs.len() as u8 == game_info.num_players {
         state.nonce = curve::mul_mod_q(&state.aggregate_pk_x, &state.aggregate_pk_y);
-        GAME_STATES.save(deps.storage, game_id, &state)?;
-        if let Some(msg) = take_callback_msg(deps.storage, game_id)? {
-            resp = resp.add_message(msg);
-        }
-    } else {
-        GAME_STATES.save(deps.storage, game_id, &state)?;
     }
 
-    Ok(resp)
+    GAME_STATES.save(deps.storage, game_id, &state)?;
+
+    Ok(Response::new()
+        .add_attribute("action", "player_register")
+        .add_attribute("game_id", game_id.to_string())
+        .add_attribute("player_index", pid.to_string()))
 }
 
 fn execute_shuffle(
     deps: DepsMut,
     info: MessageInfo,
     game_id: u64,
-    callback: Option<Binary>,
 ) -> Result<Response, ContractError> {
     ensure_game_owner(deps.storage, game_id, &info.sender)?;
     let mut state = load_state(deps.storage, game_id)?;
@@ -227,7 +193,6 @@ fn execute_shuffle(
     }
     state.state = BaseState::Shuffle;
     GAME_STATES.save(deps.storage, game_id, &state)?;
-    store_callback(deps.storage, game_id, callback)?;
 
     Ok(Response::new()
         .add_attribute("action", "shuffle")
@@ -272,20 +237,12 @@ fn execute_player_shuffle(
         state.cur_player_index = 0;
     }
 
-    let mut resp = Response::new()
-        .add_attribute("action", "player_shuffle")
-        .add_attribute("game_id", game_id.to_string())
-        .add_attribute("next_player", state.cur_player_index.to_string());
-
     GAME_STATES.save(deps.storage, game_id, &state)?;
 
-    if state.cur_player_index == 0 {
-        if let Some(msg) = take_callback_msg(deps.storage, game_id)? {
-            resp = resp.add_message(msg);
-        }
-    }
-
-    Ok(resp)
+    Ok(Response::new()
+        .add_attribute("action", "player_shuffle")
+        .add_attribute("game_id", game_id.to_string())
+        .add_attribute("next_player", state.cur_player_index.to_string()))
 }
 
 fn execute_deal_cards_to(
@@ -294,7 +251,6 @@ fn execute_deal_cards_to(
     game_id: u64,
     cards: BitMap,
     player_id: u32,
-    callback: Option<Binary>,
 ) -> Result<Response, ContractError> {
     ensure_game_owner(deps.storage, game_id, &info.sender)?;
     let game_info = load_info(deps.storage, game_id)?;
@@ -316,7 +272,6 @@ fn execute_deal_cards_to(
     }
 
     GAME_STATES.save(deps.storage, game_id, &state)?;
-    store_callback(deps.storage, game_id, callback)?;
 
     Ok(Response::new()
         .add_attribute("action", "deal_cards")
@@ -381,21 +336,12 @@ fn execute_player_deal_cards(
         }
     }
 
-    let mut resp = Response::new()
-        .add_attribute("action", "player_deal")
-        .add_attribute("game_id", game_id.to_string())
-        .add_attribute("next_player", state.cur_player_index.to_string());
-
-    let finished_round = state.cur_player_index == 0;
     GAME_STATES.save(deps.storage, game_id, &state)?;
 
-    if finished_round {
-        if let Some(msg) = take_callback_msg(deps.storage, game_id)? {
-            resp = resp.add_message(msg);
-        }
-    }
-
-    Ok(resp)
+    Ok(Response::new()
+        .add_attribute("action", "player_deal")
+        .add_attribute("game_id", game_id.to_string())
+        .add_attribute("next_player", state.cur_player_index.to_string()))
 }
 
 fn execute_open_cards(
@@ -404,7 +350,6 @@ fn execute_open_cards(
     game_id: u64,
     player_id: u32,
     opening: u8,
-    callback: Option<Binary>,
 ) -> Result<Response, ContractError> {
     ensure_game_owner(deps.storage, game_id, &info.sender)?;
     let game_info = load_info(deps.storage, game_id)?;
@@ -419,7 +364,6 @@ fn execute_open_cards(
     state.state = BaseState::Open;
     state.opening = opening;
     state.cur_player_index = player_id;
-    store_callback(deps.storage, game_id, callback)?;
     GAME_STATES.save(deps.storage, game_id, &state)?;
 
     Ok(Response::new()
@@ -477,17 +421,11 @@ fn execute_player_open_cards(
     state.opening = 0;
     state.cur_player_index = 0;
 
-    let mut resp = Response::new()
-        .add_attribute("action", "player_open")
-        .add_attribute("game_id", game_id.to_string());
-
     GAME_STATES.save(deps.storage, game_id, &state)?;
 
-    if let Some(msg) = take_callback_msg(deps.storage, game_id)? {
-        resp = resp.add_message(msg);
-    }
-
-    Ok(resp)
+    Ok(Response::new()
+        .add_attribute("action", "player_open")
+        .add_attribute("game_id", game_id.to_string()))
 }
 
 fn execute_end_game(
@@ -500,7 +438,6 @@ fn execute_end_game(
     state.state = BaseState::Complete;
     GAME_STATES.save(deps.storage, game_id, &state)?;
     ACTIVE_GAMES.remove(deps.storage, game_id);
-    NEXT_CALLBACK.remove(deps.storage, game_id);
 
     Ok(Response::new()
         .add_attribute("action", "end_game")
@@ -511,23 +448,15 @@ fn execute_error(
     deps: DepsMut,
     info: MessageInfo,
     game_id: u64,
-    callback: Option<Binary>,
 ) -> Result<Response, ContractError> {
     ensure_game_owner(deps.storage, game_id, &info.sender)?;
     let mut state = load_state(deps.storage, game_id)?;
     state.state = BaseState::GameError;
     GAME_STATES.save(deps.storage, game_id, &state)?;
-    store_callback(deps.storage, game_id, callback)?;
 
-    let mut resp = Response::new()
+    Ok(Response::new()
         .add_attribute("action", "error")
-        .add_attribute("game_id", game_id.to_string());
-
-    if let Some(msg) = take_callback_msg(deps.storage, game_id)? {
-        resp = resp.add_message(msg);
-    }
-
-    Ok(resp)
+        .add_attribute("game_id", game_id.to_string()))
 }
 
 fn update_decrypted_card(
@@ -641,40 +570,6 @@ fn load_state(storage: &mut dyn Storage, game_id: u64) -> Result<ShuffleGameStat
         .ok_or(ContractError::GameNotFound { game_id })
 }
 
-fn store_callback(
-    storage: &mut dyn Storage,
-    game_id: u64,
-    callback: Option<Binary>,
-) -> StdResult<()> {
-    if let Some(msg) = callback {
-        NEXT_CALLBACK.save(storage, game_id, &msg)
-    } else {
-        NEXT_CALLBACK.remove(storage, game_id);
-        Ok(())
-    }
-}
-
-fn take_callback_msg(
-    storage: &mut dyn Storage,
-    game_id: u64,
-) -> Result<Option<CosmosMsg>, ContractError> {
-    let callback = NEXT_CALLBACK.may_load(storage, game_id)?;
-    if let Some(msg) = callback {
-        let target = ACTIVE_GAMES
-            .may_load(storage, game_id)?
-            .ok_or(ContractError::GameNotFound { game_id })?;
-        NEXT_CALLBACK.remove(storage, game_id);
-        let cosmos = CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: target.to_string(),
-            msg,
-            funds: vec![],
-        });
-        Ok(Some(cosmos))
-    } else {
-        Ok(None)
-    }
-}
-
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
@@ -705,13 +600,10 @@ fn query_game_info(deps: Deps, game_id: u64) -> StdResult<GameInfoResponse> {
     Ok(GameInfoResponse {
         num_cards: info.num_cards,
         num_players: info.num_players,
-        encrypt_verifier: info.encrypt_verifier.to_string(),
-        deck_config: info.deck_config,
     })
 }
 
 fn query_game_state(deps: Deps, game_id: u64) -> StdResult<GameStateResponse> {
-    let info = GAME_INFOS.load(deps.storage, game_id)?;
     let state = GAME_STATES.load(deps.storage, game_id)?;
     Ok(GameStateResponse {
         state: state.state,
@@ -722,7 +614,6 @@ fn query_game_state(deps: Deps, game_id: u64) -> StdResult<GameStateResponse> {
         nonce: state.nonce,
         player_addrs: state.player_addrs.iter().map(|a| a.to_string()).collect(),
         signing_addrs: state.signing_addrs.iter().map(|a| a.to_string()).collect(),
-        deck_config: info.deck_config,
         player_hand: state.player_hand.clone(),
     })
 }
@@ -812,16 +703,7 @@ fn query_card_value(deps: Deps, game_id: u64, card_index: u32) -> StdResult<Card
         return Ok(CardValueResponse { value: None });
     }
 
-    let value = card_index_from_x1(&state.deck.x1[idx], info.deck_config);
+    // Fixed at 52-card deck config
+    let value = card_index_from_x1(&state.deck.x1[idx], crate::types::DeckConfig::Deck52Card);
     Ok(CardValueResponse { value })
-}
-
-/// Returns the verifier name for a given deck configuration.
-/// These names should match the verifier keys registered in XION's zk module.
-fn verifier_name_for_deck(deck_config: DeckConfig) -> &'static str {
-    match deck_config {
-        DeckConfig::Deck5Card => "shuffle_encrypt_5card",
-        DeckConfig::Deck30Card => "shuffle_encrypt_30card",
-        DeckConfig::Deck52Card => "shuffle_encrypt_52card",
-    }
 }

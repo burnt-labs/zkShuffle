@@ -20,6 +20,7 @@ import { readFileSync, writeFileSync } from "fs";
 import { dnld_aws, P0X_DIR } from "../utils/utils";
 const buildBabyjub = require("circomlibjs").buildBabyjub;
 const snarkjs = require("snarkjs");
+const TEMP_OUTPUT_PATH = "/Users/satyam/web3/xion/zkShuffle/cosmwasm_contracts/scripts/data";
 
 describe("Shuffle Prod encrypt/decrypt benchmark tests", function () {
   const numBits = BigInt(251);
@@ -114,9 +115,10 @@ describe("Shuffle Prod encrypt/decrypt benchmark tests", function () {
       encryptVkey,
       publicSignals: shuffleEncryptOutput.publicSignals,
       proof: shuffleEncryptOutput.proof,
+      compressedDeck: serializeWithBigInt(compressedDeck),
     };
     writeFileSync(
-      resolve(P0X_DIR, "./shuffle_encrypt_proof_data.json"),
+      resolve(TEMP_OUTPUT_PATH, "./shuffle_encrypt_proof_data.json"),
       JSON.stringify(outputData, null, 2),
     );
     console.log("Saved proof data to shuffle_encrypt_proof_data.json");
@@ -187,7 +189,7 @@ describe("Shuffle Prod encrypt/decrypt benchmark tests", function () {
       proof: decryptProof.proof,
     };
     writeFileSync(
-      resolve(P0X_DIR, "./decrypt_proof_data.json"),
+      resolve(TEMP_OUTPUT_PATH, "./decrypt_proof_data.json"),
       JSON.stringify(outputData1, null, 2),
     );
     assert(
@@ -214,3 +216,7 @@ describe("Shuffle Prod encrypt/decrypt benchmark tests", function () {
     );
   });
 });
+
+function serializeWithBigInt(obj) {
+  return JSON.stringify(obj, (_, value) => (typeof value === "bigint" ? value.toString() : value));
+}
