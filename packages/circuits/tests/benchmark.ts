@@ -41,6 +41,8 @@ describe("Shuffle Prod encrypt/decrypt benchmark tests", function () {
   });
 
   it("Benchmark Shuffle Encrypt/Decrypt", async function () {
+    // in the game we have 52 cards: numCards = 52
+
     const babyjub = await buildBabyjub();
     const keysAlice = keyGen(babyjub, numBits);
     const pk = keysAlice.pk;
@@ -97,6 +99,7 @@ describe("Shuffle Prod encrypt/decrypt benchmark tests", function () {
       encryptWasmFile,
       encryptZkeyFile,
     );
+
     assert(
       await snarkjs.groth16.verify(
         encryptVkey,
@@ -177,6 +180,15 @@ describe("Shuffle Prod encrypt/decrypt benchmark tests", function () {
       pkString,
       decryptWasmFile,
       decryptZkeyFile,
+    );
+    const outputData1 = {
+      decryptVkey,
+      publicSignals: decryptProof.publicSignals,
+      proof: decryptProof.proof,
+    };
+    writeFileSync(
+      resolve(P0X_DIR, "./decrypt_proof_data.json"),
+      JSON.stringify(outputData1, null, 2),
     );
     assert(
       await snarkjs.groth16.verify(decryptVkey, decryptProof.publicSignals, decryptProof.proof),

@@ -256,14 +256,10 @@ fn execute_player_shuffle(
     )?;
 
     // Verify the shuffle proof using XION's zk module
-    let verifier_name = verifier_name_for_deck(game_info.deck_config);
+    let verifier_name = "shuffle_encrypt";
     let proof_tuple = (proof.a, proof.b, proof.c);
-    let verified = verify_shuffle_proof(
-        deps.as_ref(),
-        &proof_tuple,
-        &public_inputs,
-        &verifier_name,
-    )?;
+    let verified =
+        verify_shuffle_proof(deps.as_ref(), &proof_tuple, &public_inputs, verifier_name)?;
     if !verified {
         return Err(ContractError::InvalidProof);
     }
@@ -571,12 +567,7 @@ fn update_decrypted_card(
 
     // Verify the decrypt proof using XION's zk module
     let proof_tuple = (proof.a.clone(), proof.b.clone(), proof.c.clone());
-    let verified = verify_decrypt_proof(
-        deps,
-        &proof_tuple,
-        &public_inputs,
-        "decrypt_verifier",
-    )?;
+    let verified = verify_decrypt_proof(deps, &proof_tuple, &public_inputs, "decrypt")?;
     if !verified {
         return Err(ContractError::InvalidProof);
     }

@@ -62,14 +62,14 @@ WALLET="your-wallet-address-here"
 Now, upload the contract to the blockchain:
 
 ```sh
-RES=$(xiond tx wasm store ./contracts/cw-counter/artifacts/cw_counter.wasm \
+RES=$(xiond tx wasm store ./artifacts/zkshuffle_cw.wasm \
       --chain-id xion-testnet-2 \
       --gas-adjustment 1.3 \
       --gas-prices 0.1uxion \
       --gas auto \
       -y --output json \
       --node $RPC_URL \
-      --from $WALLET)
+      --from $SATYAM2)
 ```
 
 After running the command, **extract the transaction hash**:
@@ -128,20 +128,27 @@ Set the contract's initialization message:
 MSG='{ "count": 1 }'
 ```
 
+````
+MSG='{ "decrypt_verifier": "xion14gv06unzqwmg8x6ktpd0zskt50m39nzqynr4zs","deck5_verifier": "xion14gv06unzqwmg8x6ktpd0zskt50m39nzqynr4zs","deck30_verifier": "xion14gv06unzqwmg8x6ktpd0zskt50m39nzqynr4zs","deck52_verifier": "xion14gv06unzqwmg8x6ktpd0zskt50m39nzqynr4zs"}'
+
 Instantiate the contract with the **Code ID** from the previous step:
 
-```sh
+```bash
 xiond tx wasm instantiate $CODE_ID "$MSG" \
-  --from $WALLET \
+  --from $SATYAM2 \
   --label "cw-counter" \
   --gas-prices 0.025uxion \
   --gas auto \
   --gas-adjustment 1.3 \
   -y --no-admin \
-  --chain-id xion-testnet-1 \
+  --chain-id xion-testnet-2 \
   --node $RPC_URL
 ```
+Query Tx
 
+```bash
+xiond q tx E164205599003239112A5DE82993A1B63734E66975213DDF3D95BE9A8DD28DEF --node $RPC_URL
+```
 Example output:
 
 ```
@@ -182,6 +189,17 @@ Example output:
 xion1v6476wrjmw8fhsh20rl4h6jadeh5sdvlhrt8jyk2szrl3pdj4musyxj6gl
 ```
 
+Create Game
+```bash
+xiond tx wasm execute $CONTRACT_ADDRESS '{"create_game": {"num_players": 2, "deck_config": "deck52_card"}}' \
+--from $SATYAM2 \
+--gas-prices 0.025uxion \
+--gas auto \
+--gas-adjustment 1.3 \
+-y \
+--node $RPC_URL \
+--chain-id $CHAIN_ID
+```
 /\*\*
 
 -
@@ -193,3 +211,4 @@ xion1v6476wrjmw8fhsh20rl4h6jadeh5sdvlhrt8jyk2szrl3pdj4musyxj6gl
 
   let res: ProofVerifyResponse = ProofVerifyResponse::decode(verification_response.as_slice())?;
   \*/
+````

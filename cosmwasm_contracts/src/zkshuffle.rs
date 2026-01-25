@@ -16,20 +16,12 @@ use serde_json as _;
 /// Custom extension trait for gRPC queries on XION
 trait QuerierGrpcExt {
     /// Query a gRPC service with a binary payload
-    fn query_grpc(
-        &self,
-        path: String,
-        data: Binary,
-    ) -> Result<Binary, cosmwasm_std::StdError>;
+    fn query_grpc(&self, path: String, data: Binary) -> Result<Binary, cosmwasm_std::StdError>;
 }
 
 /// Implement the extension for QuerierWrapper
 impl<'a> QuerierGrpcExt for QuerierWrapper<'a> {
-    fn query_grpc(
-        &self,
-        path: String,
-        data: Binary,
-    ) -> Result<Binary, cosmwasm_std::StdError> {
+    fn query_grpc(&self, path: String, data: Binary) -> Result<Binary, cosmwasm_std::StdError> {
         // Encode the path and data into a single binary request
         // Format: path_length(4 bytes) + path_bytes + data_bytes
         let path_bytes = path.as_bytes();
@@ -46,15 +38,16 @@ impl<'a> QuerierGrpcExt for QuerierWrapper<'a> {
         match self.raw_query(&request) {
             cosmwasm_std::SystemResult::Ok(inner_result) => match inner_result {
                 cosmwasm_std::ContractResult::Ok(binary) => Ok(binary),
-                cosmwasm_std::ContractResult::Err(err) => Err(cosmwasm_std::StdError::generic_err(format!(
-                    "Contract error from gRPC query: {}",
-                    err
-                ))),
+                cosmwasm_std::ContractResult::Err(err) => Err(cosmwasm_std::StdError::generic_err(
+                    format!("Contract error from gRPC query: {}", err),
+                )),
             },
-            cosmwasm_std::SystemResult::Err(system_err) => Err(cosmwasm_std::StdError::generic_err(format!(
-                "System error from gRPC query: {:?}",
-                system_err
-            ))),
+            cosmwasm_std::SystemResult::Err(system_err) => {
+                Err(cosmwasm_std::StdError::generic_err(format!(
+                    "System error from gRPC query: {:?}",
+                    system_err
+                )))
+            }
         }
     }
 }
@@ -93,14 +86,8 @@ pub fn groth16_proof_to_snarkjs(
             "1".to_string(), // Groth16 proofs have a third component set to 1
         ],
         pi_b: [
-            [
-                uint256_to_string(&b[0][0]),
-                uint256_to_string(&b[0][1]),
-            ],
-            [
-                uint256_to_string(&b[1][0]),
-                uint256_to_string(&b[1][1]),
-            ],
+            [uint256_to_string(&b[0][0]), uint256_to_string(&b[0][1])],
+            [uint256_to_string(&b[1][0]), uint256_to_string(&b[1][1])],
             ["1".to_string(), "0".to_string()], // Groth16 has a third row [1, 0]
         ],
         pi_c: [
@@ -148,7 +135,7 @@ pub fn verify_shuffle_proof(
         })?,
         public_inputs: public_inputs_str,
         vkey_name: verifier_name.to_string(),
-        vkey_id: 0,
+        vkey_id: 3,
     };
 
     let request_bytes = verify_request.to_bytes().map_err(|e| {
@@ -158,15 +145,18 @@ pub fn verify_shuffle_proof(
         )))
     })?;
 
-    let response: cosmwasm_std::Binary = deps.querier.query_grpc(
-        "/xion.zk.v1.Query/ProofVerify".to_string(),
-        cosmwasm_std::Binary::from(request_bytes),
-    ).map_err(|e| {
-        ContractError::Std(cosmwasm_std::StdError::generic_err(format!(
-            "Failed to query zk module: {}",
-            e
-        )))
-    })?;
+    let response: cosmwasm_std::Binary = deps
+        .querier
+        .query_grpc(
+            "/xion.zk.v1.Query/ProofVerify".to_string(),
+            cosmwasm_std::Binary::from(request_bytes),
+        )
+        .map_err(|e| {
+            ContractError::Std(cosmwasm_std::StdError::generic_err(format!(
+                "Failed to query zk module: {}",
+                e
+            )))
+        })?;
 
     let verify_response: ProofVerifyResponse = ProofVerifyResponse::decode(response.as_slice())
         .map_err(|e| {
@@ -209,7 +199,7 @@ pub fn verify_decrypt_proof(
         })?,
         public_inputs: public_inputs_str,
         vkey_name: verifier_name.to_string(),
-        vkey_id: 0,
+        vkey_id: 2,
     };
 
     let request_bytes = verify_request.to_bytes().map_err(|e| {
@@ -219,15 +209,18 @@ pub fn verify_decrypt_proof(
         )))
     })?;
 
-    let response: cosmwasm_std::Binary = deps.querier.query_grpc(
-        "/xion.zk.v1.Query/ProofVerify".to_string(),
-        cosmwasm_std::Binary::from(request_bytes),
-    ).map_err(|e| {
-        ContractError::Std(cosmwasm_std::StdError::generic_err(format!(
-            "Failed to query zk module: {}",
-            e
-        )))
-    })?;
+    let response: cosmwasm_std::Binary = deps
+        .querier
+        .query_grpc(
+            "/xion.zk.v1.Query/ProofVerify".to_string(),
+            cosmwasm_std::Binary::from(request_bytes),
+        )
+        .map_err(|e| {
+            ContractError::Std(cosmwasm_std::StdError::generic_err(format!(
+                "Failed to query zk module: {}",
+                e
+            )))
+        })?;
 
     let verify_response: ProofVerifyResponse = ProofVerifyResponse::decode(response.as_slice())
         .map_err(|e| {
@@ -253,8 +246,14 @@ mod tests {
             Uint256::from_str("789012").unwrap(),
         ];
         let b = [
-            [Uint256::from_str("345678").unwrap(), Uint256::from_str("901234").unwrap()],
-            [Uint256::from_str("567890").unwrap(), Uint256::from_str("123456").unwrap()],
+            [
+                Uint256::from_str("345678").unwrap(),
+                Uint256::from_str("901234").unwrap(),
+            ],
+            [
+                Uint256::from_str("567890").unwrap(),
+                Uint256::from_str("123456").unwrap(),
+            ],
         ];
         let c = [
             Uint256::from_str("234567").unwrap(),

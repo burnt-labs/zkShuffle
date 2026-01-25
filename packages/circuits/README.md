@@ -5,11 +5,12 @@ Poseidon ZK circuits
 ## Usage
 
 ### Install this package
+
 `yarn add @zk-shuffle/circuits`
 
 ### Use in your own circuits
 
-`import "path/to/node_modules/@zk-shuffle/circuits/group/group.circom"` 
+`import "path/to/node_modules/@zk-shuffle/circuits/group/group.circom"`
 
 ## Developement
 
@@ -35,7 +36,9 @@ If there are updated resources before you push the code, it's better to publish 
 
 Be notified it's better to generate your own zkey & ptau files to set up the verifier contract!
 
-
 ## Test
 
 Every circom circuits should come with an unit tests, you can take the example.circom for example
+
+decrypt
+shuffle_encrypt
