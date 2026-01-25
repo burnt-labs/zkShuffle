@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # zkShuffle Contract Test Script
-# Tests: CreateGame, Register, PlayerRegister, Shuffle, PlayerShuffle, PlayerDealCards
+# Tests: CreateGame, Register, PlayerRegister, Shuffle, PlayerShuffle, DealCardsTo, PlayerDealCards
 
 set -e
 
@@ -20,10 +20,13 @@ fi
 CONTRACT_ADDRESS="${CONTRACT_ADDRESS:-$NEXT_PUBLIC_CONTRACT_ADDRESS}"
 RPC_URL="${RPC_URL:-$NEXT_PUBLIC_RPC_URL}"
 CHAIN_ID="${CHAIN_ID:-xion-testnet-2}"
-FROM_ACCOUNT="${SATYAM2}"
+
+# Player accounts
+PLAYER1="${SATYAM2}"
+PLAYER2="${SATYAM3}"
 
 # Validate required environment variables
-required_vars=("CONTRACT_ADDRESS" "RPC_URL" "CHAIN_ID" "FROM_ACCOUNT")
+required_vars=("CONTRACT_ADDRESS" "RPC_URL" "CHAIN_ID" "PLAYER1" "PLAYER2")
 for var in "${required_vars[@]}"; do
     if [ -z "${!var}" ]; then
         echo "Error: Required environment variable $var is not set"
@@ -35,19 +38,21 @@ echo "=== zkShuffle Contract Test Script ==="
 echo "Contract: $CONTRACT_ADDRESS"
 echo "RPC: $RPC_URL"
 echo "Chain ID: $CHAIN_ID"
-echo "From: $FROM_ACCOUNT"
+echo "Player 1: $PLAYER1"
+echo "Player 2: $PLAYER2"
 echo ""
 
 # Game configuration
 GAME_ID=${GAME_ID:-1}
-NUM_PLAYERS=${NUM_PLAYERS:-2}
+NUM_PLAYERS=2
 
 # Function to execute transaction
 execute_tx() {
-    local msg="$1"
-    echo "Executing: $msg"
+    local from_account="$1"
+    local msg="$2"
+    echo "Executing from $from_account: $msg"
     xiond tx wasm execute "$CONTRACT_ADDRESS" "$msg" \
-        --from "$FROM_ACCOUNT" \
+        --from "$from_account" \
         --gas-prices 0.025uxion \
         --gas auto \
         --gas-adjustment 1.3 \
@@ -68,106 +73,110 @@ query_contract() {
 }
 
 # ============================================================================
-# Test 1: CreateGame
+# Step 1: CreateGame (already done if game exists, skip if needed)
 # ============================================================================
-echo "=== Test 1: CreateGame ==="
+echo "=== Step 1: CreateGame ==="
+echo "Creating game with $NUM_PLAYERS players..."
 CREATE_MSG='{"create_game": {"num_players": '"$NUM_PLAYERS"'}}'
-execute_tx "$CREATE_MSG"
+execute_tx "$PLAYER1" "$CREATE_MSG"
 
-# Query game info to verify
-# echo "Verifying game creation..."
-# GAME_INFO_MSG='{"game_info": {"game_id": '"$GAME_ID"'}}'
-# query_contract "$GAME_INFO_MSG"
+sleep 3
 
-# Wait for transaction to be processed
-sleep 2
+# Query game state to verify
+echo "Verifying game creation..."
+GAME_STATE_MSG='{"game_state": {"game_id": '"$GAME_ID"'}}'
+query_contract "$GAME_STATE_MSG"
 
-# ============================================================================
-# Test 2: Register (First Player)
-# ============================================================================
-# echo "=== Test 2: Register (Player 1) ==="
-# REGISTER_MSG='{"register": {"game_id": '"$GAME_ID"'}}'
-# execute_tx "$REGISTER_MSG"
-
-# sleep 10
+sleep 3
 
 # ============================================================================
-# Test 3: Register (Second Player - using different account if available)
+# Step 2: Register (Start registration phase)
 # ============================================================================
-# echo "=== Test 3: Register (Player 2) ==="
-# if [ -n "$SATYAM3" ]; then
-#     xiond tx wasm execute "$CONTRACT_ADDRESS" "$REGISTER_MSG" \
-#         --from "$SATYAM3" \
-#         --gas-prices 0.025uxion \
-#         --gas auto \
-#         --gas-adjustment 1.3 \
-#         -y \
-#         --node "$RPC_URL" \
-#         --chain-id "$CHAIN_ID"
-# else
-#     echo "Warning: SATYAM3 not set, skipping second player registration"
-#     echo "You'll need another account to complete the game"
-# fi
-# echo ""
+echo "=== Step 2: Register (Start Registration Phase) ==="
+REGISTER_MSG='{"register": {"game_id": '"$GAME_ID"'}}'
+execute_tx "$PLAYER1" "$REGISTER_MSG"
 
-# sleep 10
+sleep 3
 
-# # Query game state to check current state
-# echo "Checking game state..."
-# GAME_STATE_MSG='{"game_state": {"game_id": '"$GAME_ID"'}}'
-# query_contract "$GAME_STATE_MSG"
+# Query game state to check current state
+echo "Checking game state after Register..."
+query_contract "$GAME_STATE_MSG"
+
+sleep 3
 
 # ============================================================================
-# Test 4: PlayerRegister (with public key)
+# Step 3: PlayerRegister (Player 1)
 # ============================================================================
-echo "=== Test 4: PlayerRegister ==="
-echo "Note: This requires the actual public key coordinates from your key generation"
+echo "=== Step 3: PlayerRegister (Player 1) ==="
+echo "Player 1 registering with public key..."
 
-# Example public key (replace with actual values)
-# These are example BLS12-381 curve points
-PK_X=10031262171927540148667355526369034398030886437092045105752248699557385197826
-PK_Y=633281375905621697187330766174974863687049529291089048651929454608812697683
+# Example public key for Player 1 (replace with actual values from key generation)
+PK1_X="10031262171927540148667355526369034398030886437092045105752248699557385197826"
+PK1_Y="633281375905621697187330766174974863687049529291089048651929454608812697683"
 
-PK1_X=2763488322167937039616325905516046217694264098671987087929565332380420898366
-PK1_Y=15305195750036305661220525648961313310481046260814497672243197092298550508693
-
-
-PLAYER_REGISTER_MSG='{"player_register": {
+PLAYER1_REGISTER_MSG='{"player_register": {
     "game_id": '"$GAME_ID"',
-    "signing_addr": "'"$FROM_ACCOUNT"'",
-    "pk_x": "'"$PK_X"'",
-    "pk_y": "'"$PK_Y"'"
+    "signing_addr": "'"$PLAYER1"'",
+    "pk_x": "'"$PK1_X"'",
+    "pk_y": "'"$PK1_Y"'"
 }}'
-execute_tx "$PLAYER_REGISTER_MSG"
+execute_tx "$PLAYER1" "$PLAYER1_REGISTER_MSG"
 
-sleep 10
+sleep 3
 
 # ============================================================================
-# Test 5: Shuffle (initiate shuffle phase)
+# Step 4: PlayerRegister (Player 2)
 # ============================================================================
-echo "=== Test 5: Shuffle ==="
+echo "=== Step 4: PlayerRegister (Player 2) ==="
+echo "Player 2 registering with public key..."
+
+# Example public key for Player 2 (replace with actual values from key generation)
+PK2_X="2763488322167937039616325905516046217694264098671987087929565332380420898366"
+PK2_Y="15305195750036305661220525648961313310481046260814497672243197092298550508693"
+
+PLAYER2_REGISTER_MSG='{"player_register": {
+    "game_id": '"$GAME_ID"',
+    "signing_addr": "'"$PLAYER2"'",
+    "pk_x": "'"$PK2_X"'",
+    "pk_y": "'"$PK2_Y"'"
+}}'
+execute_tx "$PLAYER2" "$PLAYER2_REGISTER_MSG"
+
+sleep 3
+
+# Query game state to check registration status
+echo "Checking game state after all players registered..."
+query_contract "$GAME_STATE_MSG"
+
+sleep 3
+
+# ============================================================================
+# Step 5: Shuffle (Initiate shuffle phase)
+# ============================================================================
+echo "=== Step 5: Shuffle (Initiate Shuffle Phase) ==="
 SHUFFLE_MSG='{"shuffle": {"game_id": '"$GAME_ID"'}}'
-execute_tx "$SHUFFLE_MSG"
+execute_tx "$PLAYER1" "$SHUFFLE_MSG"
 
-sleep 10
+sleep 3
 
 # Query current player index
 echo "Checking current player index..."
 CUR_PLAYER_MSG='{"cur_player_index": {"game_id": '"$GAME_ID"'}}'
 query_contract "$CUR_PLAYER_MSG"
 
+sleep 3
+
 # ============================================================================
-# Test 6: PlayerShuffle (with proof and deck)
+# Step 6: PlayerShuffle (Player 1)
 # ============================================================================
-echo "=== Test 6: PlayerShuffle ==="
-echo "Note: This requires actual proof and shuffled deck data"
-echo "Loading proof data from scripts/data/shuffle_encrypt.json..."
+echo "=== Step 6: PlayerShuffle (Player 1) ==="
+echo "Loading proof data from $SCRIPT_DIR/data/shuffle_encrypt.json..."
 
 if [ -f "$SCRIPT_DIR/data/shuffle_encrypt.json" ]; then
     # Extract proof data from the file
     PROOF_DATA=$(cat "$SCRIPT_DIR/data/shuffle_encrypt.json")
 
-    # Parse pi_a (convert to Uint256 array format)
+    # Parse pi_a
     PI_A_0=$(echo "$PROOF_DATA" | jq -r '.proof.pi_a[0]')
     PI_A_1=$(echo "$PROOF_DATA" | jq -r '.proof.pi_a[1]')
 
@@ -181,74 +190,103 @@ if [ -f "$SCRIPT_DIR/data/shuffle_encrypt.json" ]; then
     PI_C_0=$(echo "$PROOF_DATA" | jq -r '.proof.pi_c[0]')
     PI_C_1=$(echo "$PROOF_DATA" | jq -r '.proof.pi_c[1]')
 
-    echo "Building PlayerShuffle message..."
-    echo "Note: You need to provide actual deck data (x0, x1 arrays, selector0, selector1)"
-    echo "This is a template - replace the deck values with your actual shuffled deck"
+    echo "Building PlayerShuffle message for Player 1..."
+    echo "NOTE: This requires actual deck data from your circuit output!"
+    echo "The x0 and x1 arrays should contain the shuffled deck card coordinates."
+    echo ""
+    echo "For a complete test, you need to:"
+    echo "1. Run your shuffle circuit to get the actual shuffled deck"
+    echo "2. Extract the 52 card coordinates (x0 and x1 arrays)"
+    echo "3. Generate selector bitmaps (BitMap256 format)"
+    echo ""
+    echo "Example structure (fill in actual values):"
 
-    # Example deck structure (52 cards for deck52)
-    # You'll need to generate actual deck data from your circuit
-    cat > /tmp/player_shuffle_template.json <<EOF
+    # Template for PlayerShuffle
+    cat <<'EOF'
 {
   "player_shuffle": {
-    "game_id": $GAME_ID,
+    "game_id": 1,
     "proof": {
-      "a": ["$PI_A_0", "$PI_A_1"],
+      "a": ["pi_a_0", "pi_a_1"],
       "b": [
-        ["$PI_B_0_0", "$PI_B_0_1"],
-        ["$PI_B_1_0", "$PI_B_1_1"]
+        ["pi_b_0_0", "pi_b_0_1"],
+        ["pi_b_1_0", "pi_b_1_1"]
       ],
-      "c": ["$PI_C_0", "$PI_C_1"]
+      "c": ["pi_c_0", "pi_c_1"]
     },
     "deck": {
       "config": "deck52_card",
-      "x0": [
-        "x0_0_value", "x0_1_value", ...
-      ],
-      "x1": [
-        "x1_0_value", "x1_1_value", ...
-      ],
-      "selector0": "bitmap_value_0",
-      "selector1": "bitmap_value_1"
+      "x0": [ /* 52 Uint256 values for card x0 coordinates */ ],
+      "x1": [ /* 52 Uint256 values for card x1 coordinates */ ],
+      "selector0": "bitmap_uint256_0",
+      "selector1": "bitmap_uint256_1"
     }
   }
 }
 EOF
-    echo "Template saved to /tmp/player_shuffle_template.json"
     echo ""
-    echo "To execute PlayerShuffle, you need to:"
-    echo "1. Generate actual shuffled deck data (52 x0 values, 52 x1 values)"
-    echo "2. Generate selector bitmaps (BitMap256 format)"
-    echo "3. Update the template and execute manually"
+    echo "Skipping PlayerShuffle execution - requires real deck data."
+    echo "Update this script with actual deck values from your circuit."
 else
-    echo "Warning: shuffle_encrypt.json not found"
+    echo "Warning: shuffle_encrypt.json not found at $SCRIPT_DIR/data/shuffle_encrypt.json"
 fi
 
 sleep 2
 
 # ============================================================================
-# Test 7: DealCardsTo (initiate deal phase)
+# Step 7: PlayerShuffle (Player 2)
 # ============================================================================
-echo "=== Test 7: DealCardsTo ==="
-echo "Dealing cards to player 0..."
+echo "=== Step 7: PlayerShuffle (Player 2) ==="
+echo "Player 2 would also shuffle with their own proof and deck."
+echo "Skipping - requires real deck data."
+echo ""
 
-# Example: Deal 5 cards (bitmap format)
-# BitMap256 representing cards 0,1,2,3,4
-CARDS_BITMAP="31"  # Binary: 11111 = first 5 cards
+sleep 2
+
+# ============================================================================
+# Step 8: DealCardsTo (Deal cards to players)
+# ============================================================================
+echo "=== Step 8: DealCardsTo ==="
+echo "Dealing 5 cards to Player 1..."
+
+# BitMap256 representing cards 0,1,2,3,4 (first 5 cards)
+# In hex: 0x1F = 31 decimal = binary 11111
+CARDS_BITMAP="0x1f"
 
 DEAL_MSG='{"deal_cards_to": {
     "game_id": '"$GAME_ID"',
     "cards": "'"$CARDS_BITMAP"'",
     "player_id": 0
 }}'
-execute_tx "$DEAL_MSG"
+execute_tx "$PLAYER1" "$DEAL_MSG"
 
-sleep 2
+sleep 3
+
+echo "Dealing 5 cards to Player 2..."
+# Deal cards 5,6,7,8,9 (next 5 cards)
+# In hex: 0x3E0 = 992 decimal
+CARDS_BITMAP_P2="0x3e0"
+
+DEAL_MSG_P2='{"deal_cards_to": {
+    "game_id": '"$GAME_ID"',
+    "cards": "'"$CARDS_BITMAP_P2"'",
+    "player_id": 1
+}}'
+execute_tx "$PLAYER1" "$DEAL_MSG_P2"
+
+sleep 3
+
+# Query game state
+echo "Checking game state after dealing..."
+query_contract "$GAME_STATE_MSG"
+
+sleep 3
 
 # ============================================================================
-# Test 8: PlayerDealCards (with decryption proofs)
+# Step 9: PlayerDealCards (Player 1 decrypts their cards)
 # ============================================================================
-echo "=== Test 8: PlayerDealCards ==="
-echo "Loading decryption proof from scripts/data/decrypt.json..."
+echo "=== Step 9: PlayerDealCards (Player 1) ==="
+echo "Loading decryption proof from $SCRIPT_DIR/data/decrypt.json..."
 
 if [ -f "$SCRIPT_DIR/data/decrypt.json" ]; then
     DECRYPT_DATA=$(cat "$SCRIPT_DIR/data/decrypt.json")
@@ -265,54 +303,102 @@ if [ -f "$SCRIPT_DIR/data/decrypt.json" ]; then
     DECRYPT_PI_C_0=$(echo "$DECRYPT_DATA" | jq -r '.proof.pi_c[0]')
     DECRYPT_PI_C_1=$(echo "$DECRYPT_DATA" | jq -r '.proof.pi_c[1]')
 
-    echo "Building PlayerDealCards message..."
-    echo "Note: You need actual decrypted card values and init_deltas"
+    echo "Building PlayerDealCards message for Player 1..."
+    echo "NOTE: This requires actual decrypted card values and init_deltas!"
+    echo ""
+    echo "For a complete test, you need to:"
+    echo "1. Run your decrypt circuit for each card being dealt"
+    echo "2. Get the decrypted card coordinates (x, y)"
+    echo "3. Get the init_deltas for each card"
+    echo ""
+    echo "Example structure (fill in actual values):"
 
-    cat > /tmp/player_deal_template.json <<EOF
+    # Template for PlayerDealCards
+    cat <<'EOF'
 {
   "player_deal_cards": {
-    "game_id": $GAME_ID,
-    "proofs": [{
-      "a": ["$DECRYPT_PI_A_0", "$DECRYPT_PI_A_1"],
-      "b": [
-        ["$DECRYPT_PI_B_0_0", "$DECRYPT_PI_B_0_1"],
-        ["$DECRYPT_PI_B_1_0", "$DECRYPT_PI_B_1_1"]
-      ],
-      "c": ["$DECRYPT_PI_C_0", "$DECRYPT_PI_C_1"]
-    }],
+    "game_id": 1,
+    "proofs": [
+      {
+        "a": ["decrypt_pi_a_0", "decrypt_pi_a_1"],
+        "b": [
+          ["decrypt_pi_b_0_0", "decrypt_pi_b_0_1"],
+          ["decrypt_pi_b_1_0", "decrypt_pi_b_1_1"]
+        ],
+        "c": ["decrypt_pi_c_0", "decrypt_pi_c_1"]
+      }
+      /* Add more proofs if dealing multiple cards */
+    ],
     "decrypted_cards": [
       {"x": "card_x_value", "y": "card_y_value"}
+      /* Add more cards as needed */
     ],
     "init_deltas": [
       {"delta0": "delta0_value", "delta1": "delta1_value"}
+      /* Add more deltas as needed */
     ]
   }
 }
 EOF
-    echo "Template saved to /tmp/player_deal_template.json"
     echo ""
-    echo "To execute PlayerDealCards, you need to:"
-    echo "1. Generate decryption proofs for each card being dealt"
-    echo "2. Provide decrypted card values (x, y coordinates)"
-    echo "3. Provide init_deltas for each card"
+    echo "Skipping PlayerDealCards execution - requires real decryption data."
+    echo "Update this script with actual card values from your circuit."
 else
-    echo "Warning: decrypt.json not found"
+    echo "Warning: decrypt.json not found at $SCRIPT_DIR/data/decrypt.json"
 fi
 
+sleep 2
+
 # ============================================================================
-# Summary and Next Steps
+# Step 10: PlayerDealCards (Player 2 decrypts their cards)
+# ============================================================================
+echo "=== Step 10: PlayerDealCards (Player 2) ==="
+echo "Player 2 would decrypt their cards with their own proofs."
+echo "Skipping - requires real decryption data."
+echo ""
+
+# ============================================================================
+# Summary and Debugging Commands
 # ============================================================================
 echo ""
 echo "=== Test Summary ==="
-echo "Basic transaction tests completed!"
+echo "Game setup test completed!"
 echo ""
-echo "Next Steps:"
-echo "1. Generate actual ZK proofs using your circuit"
-echo "2. Create proper deck data with shuffled card positions"
-echo "3. Fill in the templates in /tmp/ with real values"
-echo "4. Execute PlayerShuffle and PlayerDealCards with complete data"
+echo "Executed steps:"
+echo "  1. CreateGame - Created game with $NUM_PLAYERS players"
+echo "  2. Register - Started registration phase"
+echo "  3. PlayerRegister (Player 1) - Registered Player 1"
+echo "  4. PlayerRegister (Player 2) - Registered Player 2"
+echo "  5. Shuffle - Started shuffle phase"
+echo "  6. PlayerShuffle - Skipped (requires real deck data)"
+echo "  7. PlayerShuffle - Skipped (requires real deck data)"
+echo "  8. DealCardsTo - Dealt cards to Player 1"
+echo "  9. DealCardsTo - Dealt cards to Player 2"
+echo "  10. PlayerDealCards - Skipped (requires real decryption data)"
+echo ""
+echo "Next Steps to Complete the Game:"
+echo "1. Generate actual ZK proofs using your circuits:"
+echo "   - Run shuffle_encrypt circuit for Player 1"
+echo "   - Run shuffle_encrypt circuit for Player 2"
+echo "   - Run decrypt circuit for each card being dealt"
+echo ""
+echo "2. Extract the required data:"
+echo "   - Shuffled deck coordinates (x0, x1 arrays for 52 cards)"
+echo "   - Selector bitmaps (BitMap256 format)"
+echo "   - Decrypted card coordinates"
+echo "   - Init deltas for each decrypted card"
+echo ""
+echo "3. Update this script with the actual values and uncomment the execute commands"
 echo ""
 echo "Query commands for debugging:"
-echo "  Game State: xiond query wasm contract-state smart $CONTRACT_ADDRESS '{\"game_state\": {\"game_id\": $GAME_ID}}' --node $RPC_URL"
-echo "  Deck: xiond query wasm contract-state smart $CONTRACT_ADDRESS '{\"deck\": {\"game_id\": $GAME_ID}}' --node $RPC_URL"
-echo "  Aggregated PK: xiond query wasm contract-state smart $CONTRACT_ADDRESS '{\"aggregated_pk\": {\"game_id\": $GAME_ID}}' --node $RPC_URL"
+echo "  Game State:"
+echo "  xiond query wasm contract-state smart $CONTRACT_ADDRESS '{\"game_state\": {\"game_id\": $GAME_ID}}' --node $RPC_URL"
+echo ""
+echo "  Current Player Index:"
+echo "  xiond query wasm contract-state smart $CONTRACT_ADDRESS '{\"cur_player_index\": {\"game_id\": $GAME_ID}}' --node $RPC_URL"
+echo ""
+echo "  Deck:"
+echo "  xiond query wasm contract-state smart $CONTRACT_ADDRESS '{\"deck\": {\"game_id\": $GAME_ID}}' --node $RPC_URL"
+echo ""
+echo "  Aggregated Public Key:"
+echo "  xiond query wasm contract-state smart $CONTRACT_ADDRESS '{\"aggregated_pk\": {\"game_id\": $GAME_ID}}' --node $RPC_URL"
