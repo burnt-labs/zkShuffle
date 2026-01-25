@@ -13,44 +13,8 @@ use cosmwasm_std::{Binary, Deps, QuerierWrapper, Uint256};
 use serde::{Deserialize, Serialize};
 use serde_json as _;
 
-/// Custom extension trait for gRPC queries on XION
-trait QuerierGrpcExt {
-    /// Query a gRPC service with a binary payload
-    fn query_grpc(&self, path: String, data: Binary) -> Result<Binary, cosmwasm_std::StdError>;
-}
-
-/// Implement the extension for QuerierWrapper
-impl<'a> QuerierGrpcExt for QuerierWrapper<'a> {
-    fn query_grpc(&self, path: String, data: Binary) -> Result<Binary, cosmwasm_std::StdError> {
-        // Encode the path and data into a single binary request
-        // Format: path_length(4 bytes) + path_bytes + data_bytes
-        let path_bytes = path.as_bytes();
-        let mut request = Vec::with_capacity(4 + path_bytes.len() + data.len());
-
-        // Add path length as big-endian u32
-        request.extend_from_slice(&(path_bytes.len() as u32).to_be_bytes());
-        // Add path
-        request.extend_from_slice(path_bytes);
-        // Add data
-        request.extend_from_slice(data.as_slice());
-
-        // Use raw_query which returns SystemResult<ContractResult<Binary>>
-        match self.raw_query(&request) {
-            cosmwasm_std::SystemResult::Ok(inner_result) => match inner_result {
-                cosmwasm_std::ContractResult::Ok(binary) => Ok(binary),
-                cosmwasm_std::ContractResult::Err(err) => Err(cosmwasm_std::StdError::generic_err(
-                    format!("Contract error from gRPC query: {}", err),
-                )),
-            },
-            cosmwasm_std::SystemResult::Err(system_err) => {
-                Err(cosmwasm_std::StdError::generic_err(format!(
-                    "System error from gRPC query: {:?}",
-                    system_err
-                )))
-            }
-        }
-    }
-}
+/// Note: query_grpc is provided by XION's CosmWasm fork
+/// No custom implementation needed - use deps.querier.query_grpc() directly
 
 /// SnarkJS-compatible Groth16 proof structure for JSON serialization
 /// This matches the format expected by the XION zk module

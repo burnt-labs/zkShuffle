@@ -145,26 +145,19 @@ Copy the new transaction hash for the next step.
 
 ---
 
-### **Step 6: Retrieve the Contract Address**
-
-Set the new transaction hash:
-
-```sh
-TXHASH="your-txhash-here"
-```
 
 Query the blockchain to get the **contract address**:
 
-```sh
-CONTRACT=$(xiond query tx $TXHASH \
-  --node https://rpc.xion-testnet-1.burnt.com:443 \
+```bash
+CONTRACT_ADDRESS=$(xiond query tx $DEPLOY_TXHASH \
+  --node $RPC_URL \
   --output json | jq -r '.events[] | select(.type == "instantiate") | .attributes[] | select(.key == "_contract_address") | .value')
 ```
 
 Display the contract address:
 
 ```sh
-echo $CONTRACT
+echo $CONTRACT_ADDRESS
 ```
 
 Example output:
