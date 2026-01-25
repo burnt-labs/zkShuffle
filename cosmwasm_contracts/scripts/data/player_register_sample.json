@@ -1,0 +1,17 @@
+{
+  "description": "Sample PlayerRegister message template",
+  "note": "Replace the pk_x and pk_y values with your actual BLS12-381 public key coordinates",
+  "player_register": {
+    "game_id": 1,
+    "signing_addr": "xion1g6u0d3e025u2vkvum0c8npdx4jnc4sn2egt7u4",
+    "pk_x": "1234567890123456789012345678901234567890123456789012345678901234",
+    "pk_y": "9876543210987654321098765432109876543210987654321098765432109876"
+  },
+  "instructions": {
+    "step1": "Generate a BLS12-381 key pair using your circuit/keygen tool",
+    "step2": "Extract the public key coordinates (pk_x, pk_y)",
+    "step3": "Fill in the signing_addr with your authorized address (or same as player address)",
+    "step4": "Update game_id if needed",
+    "step5": "Execute: xiond tx wasm execute $CONTRACT_ADDRESS '<this_json>' --from $ACCOUNT --gas auto -y"
+  }
+}

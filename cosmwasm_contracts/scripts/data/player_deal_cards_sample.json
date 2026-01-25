@@ -1,0 +1,63 @@
+{
+  "description": "Sample PlayerDealCards message template",
+  "note": "This template shows the structure for dealing cards with decryption proofs",
+  "player_deal_cards": {
+    "game_id": 1,
+    "proofs": [
+      {
+        "a": ["proof_0_a_0", "proof_0_a_1"],
+        "b": [
+          ["proof_0_b_0_0", "proof_0_b_0_1"],
+          ["proof_0_b_1_0", "proof_0_b_1_1"]
+        ],
+        "c": ["proof_0_c_0", "proof_0_c_1"]
+      },
+      {
+        "a": ["proof_1_a_0", "proof_1_a_1"],
+        "b": [
+          ["proof_1_b_0_0", "proof_1_b_0_1"],
+          ["proof_1_b_1_0", "proof_1_b_1_1"]
+        ],
+        "c": ["proof_1_c_0", "proof_1_c_1"]
+      }
+    ],
+    "decrypted_cards": [
+      {
+        "x": "decrypted_card_0_x",
+        "y": "decrypted_card_0_y"
+      },
+      {
+        "x": "decrypted_card_1_x",
+        "y": "decrypted_card_1_y"
+      }
+    ],
+    "init_deltas": [
+      {
+        "delta0": "init_delta_0_delta0",
+        "delta1": "init_delta_0_delta1"
+      },
+      {
+        "delta0": "init_delta_1_delta0",
+        "delta1": "init_delta_1_delta1"
+      }
+    ]
+  },
+  "array_mapping": {
+    "proofs": "One proof per card being dealt",
+    "decrypted_cards": "Decrypted card coordinates (one per card)",
+    "init_deltas": "Initial deltas for re-encryption (one per card)"
+  },
+  "instructions": {
+    "step1": "For each card being dealt, generate a decryption proof",
+    "step2": "Decrypt each card using your private key",
+    "step3": "Calculate init_deltas for re-encryption",
+    "step4": "Fill in all values - arrays must have same length (number of cards being dealt)",
+    "step5": "Execute: xiond tx wasm execute $CONTRACT_ADDRESS '<this_json>' --from $ACCOUNT --gas auto -y"
+  },
+  "example_5_cards": {
+    "description": "If dealing 5 cards, all arrays should have length 5",
+    "proofs_length": 5,
+    "decrypted_cards_length": 5,
+    "init_deltas_length": 5
+  }
+}

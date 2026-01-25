@@ -1,0 +1,65 @@
+{
+  "description": "Sample PlayerShuffle message template for 52-card deck",
+  "note": "This template shows the structure - you must fill in actual values from your ZK circuit",
+  "player_shuffle": {
+    "game_id": 1,
+    "proof": {
+      "a": [
+        "proof_a_0_uint256",
+        "proof_a_1_uint256"
+      ],
+      "b": [
+        ["proof_b_0_0_uint256", "proof_b_0_1_uint256"],
+        ["proof_b_1_0_uint256", "proof_b_1_1_uint256"]
+      ],
+      "c": [
+        "proof_c_0_uint256",
+        "proof_c_1_uint256"
+      ]
+    },
+    "deck": {
+      "config": "deck52_card",
+      "x0": [
+        "card_0_x0", "card_1_x0", "card_2_x0", "card_3_x0", "card_4_x0",
+        "card_5_x0", "card_6_x0", "card_7_x0", "card_8_x0", "card_9_x0",
+        "card_10_x0", "card_11_x0", "card_12_x0", "card_13_x0", "card_14_x0",
+        "card_15_x0", "card_16_x0", "card_17_x0", "card_18_x0", "card_19_x0",
+        "card_20_x0", "card_21_x0", "card_22_x0", "card_23_x0", "card_24_x0",
+        "card_25_x0", "card_26_x0", "card_27_x0", "card_28_x0", "card_29_x0",
+        "card_30_x0", "card_31_x0", "card_32_x0", "card_33_x0", "card_34_x0",
+        "card_35_x0", "card_36_x0", "card_37_x0", "card_38_x0", "card_39_x0",
+        "card_40_x0", "card_41_x0", "card_42_x0", "card_43_x0", "card_44_x0",
+        "card_45_x0", "card_46_x0", "card_47_x0", "card_48_x0", "card_49_x0",
+        "card_50_x0", "card_51_x0"
+      ],
+      "x1": [
+        "card_0_x1", "card_1_x1", "card_2_x1", "card_3_x1", "card_4_x1",
+        "card_5_x1", "card_6_x1", "card_7_x1", "card_8_x1", "card_9_x1",
+        "card_10_x1", "card_11_x1", "card_12_x1", "card_13_x1", "card_14_x1",
+        "card_15_x1", "card_16_x1", "card_17_x1", "card_18_x1", "card_19_x1",
+        "card_20_x1", "card_21_x1", "card_22_x1", "card_23_x1", "card_24_x1",
+        "card_25_x1", "card_26_x1", "card_27_x1", "card_28_x1", "card_29_x1",
+        "card_30_x1", "card_31_x1", "card_32_x1", "card_33_x1", "card_34_x1",
+        "card_35_x1", "card_36_x1", "card_37_x1", "card_38_x1", "card_39_x1",
+        "card_40_x1", "card_41_x1", "card_42_x1", "card_43_x1", "card_44_x1",
+        "card_45_x1", "card_46_x1", "card_47_x1", "card_48_x1", "card_49_x1",
+        "card_50_x1", "card_51_x1"
+      ],
+      "selector0": "bitmap256_value_0",
+      "selector1": "bitmap256_value_1"
+    }
+  },
+  "instructions": {
+    "step1": "Run your shuffle circuit with the current deck as input",
+    "step2": "Generate Groth16 proof for the shuffle operation",
+    "step3": "Extract the output deck (52 cards, each with x0 and x1 coordinates)",
+    "step4": "Calculate selector bitmaps (BitMap256 format)",
+    "step5": "Fill in all values in this template",
+    "step6": "Execute: xiond tx wasm execute $CONTRACT_ADDRESS '<this_json>' --from $ACCOUNT --gas auto -y"
+  },
+  "bitmaps_explanation": {
+    "selector0": "BitMap256 for x0 coordinates - indicates which x0 values are valid",
+    "selector1": "BitMap256 for x1 coordinates - indicates which x1 values are valid",
+    "bitmap_format": "Uint256 representing 256 bits as a hex string or decimal string"
+  }
+}
