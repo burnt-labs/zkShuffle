@@ -80,14 +80,14 @@ echo "Creating game with $NUM_PLAYERS players..."
 CREATE_MSG='{"create_game": {"num_players": '"$NUM_PLAYERS"'}}'
 execute_tx "$PLAYER1" "$CREATE_MSG"
 
-sleep 3
+sleep 10
 
 # Query game state to verify
 echo "Verifying game creation..."
 GAME_STATE_MSG='{"game_state": {"game_id": '"$GAME_ID"'}}'
 query_contract "$GAME_STATE_MSG"
 
-sleep 3
+sleep 10
 
 # ============================================================================
 # Step 2: Register (Start registration phase)
@@ -96,13 +96,13 @@ echo "=== Step 2: Register (Start Registration Phase) ==="
 REGISTER_MSG='{"register": {"game_id": '"$GAME_ID"'}}'
 execute_tx "$PLAYER1" "$REGISTER_MSG"
 
-sleep 3
+sleep 10
 
 # Query game state to check current state
 echo "Checking game state after Register..."
 query_contract "$GAME_STATE_MSG"
 
-sleep 3
+sleep 10
 
 # ============================================================================
 # Step 3: PlayerRegister (Player 1)
@@ -122,7 +122,7 @@ PLAYER1_REGISTER_MSG='{"player_register": {
 }}'
 execute_tx "$PLAYER1" "$PLAYER1_REGISTER_MSG"
 
-sleep 3
+sleep 10
 
 # ============================================================================
 # Step 4: PlayerRegister (Player 2)
@@ -142,7 +142,7 @@ PLAYER2_REGISTER_MSG='{"player_register": {
 }}'
 execute_tx "$PLAYER2" "$PLAYER2_REGISTER_MSG"
 
-sleep 3
+sleep 10
 
 # Query game state to check registration status
 echo "Checking game state after all players registered..."
@@ -157,14 +157,14 @@ echo "=== Step 5: Shuffle (Initiate Shuffle Phase) ==="
 SHUFFLE_MSG='{"shuffle": {"game_id": '"$GAME_ID"'}}'
 execute_tx "$PLAYER1" "$SHUFFLE_MSG"
 
-sleep 3
+sleep 10
 
 # Query current player index
-echo "Checking current player index..."
-CUR_PLAYER_MSG='{"cur_player_index": {"game_id": '"$GAME_ID"'}}'
-query_contract "$CUR_PLAYER_MSG"
+# echo "Checking current player index..."
+# CUR_PLAYER_MSG='{"cur_player_index": {"game_id": '"$GAME_ID"'}}'
+# query_contract "$CUR_PLAYER_MSG"
 
-sleep 3
+sleep 10
 
 # ============================================================================
 # Step 6: PlayerShuffle (Player 1)
