@@ -210,3 +210,10 @@ SATYAM4=xion1aqgk0s3vm9qkec52djw93fel9e5cfll8gezmuq
 MSG='{ "decrypt_verifier": "xion14gv06unzqwmg8x6ktpd0zskt50m39nzqynr4zs","deck5_verifier": "xion14gv06unzqwmg8x6ktpd0zskt50m39nzqynr4zs","deck30_verifier": "xion14gv06unzqwmg8x6ktpd0zskt50m39nzqynr4zs","deck52_verifier": "xion14gv06unzqwmg8x6ktpd0zskt50m39nzqynr4zs"}'
 
 ```
+
+MINIMAL CONTRACT CODE ID AND ADDRESS
+
+```
+CODE_ID=1889
+CONTRACT_ADDRESS=xion16nae5afyqgkvf2jjhuzw6jxt26c5leu7pdlv0u4zvxczqmxjnlyq5t0ny8
+```
