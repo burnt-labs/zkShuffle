@@ -57,6 +57,7 @@ describe("Shuffle Prod encrypt/decrypt benchmark tests", function () {
 
     // Initializes deck.
     const initializedDeck: bigint[] = initDeck(babyjub, Number(numCards));
+
     let compressedDeck = compressDeck(initializedDeck);
     let deck: {
       X0: bigint[];
@@ -116,6 +117,9 @@ describe("Shuffle Prod encrypt/decrypt benchmark tests", function () {
       publicSignals: shuffleEncryptOutput.publicSignals,
       proof: shuffleEncryptOutput.proof,
       compressedDeck: serializeWithBigInt(compressedDeck),
+      pkString,
+      initializedDeck: serializeWithBigInt(initializedDeck),
+      deckDelta: serializeWithBigInt(deckDelta),
     };
     writeFileSync(
       resolve(TEMP_OUTPUT_PATH, "./shuffle_encrypt_proof_data.json"),

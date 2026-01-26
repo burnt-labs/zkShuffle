@@ -1,16 +1,14 @@
-//! zkShuffle card game contract with ZK proof verification
-
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_json_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult, Uint256,
+    to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult, Uint256,
 };
 
 use crate::curve::point_add;
 use crate::deck::shuffle_public_input;
 use crate::error::ContractError;
 use crate::msg::{
-    ExecuteMsg, InstantiateMsg, QueryMsg, VerificationCountResponse, GameStateResponse,
+    ExecuteMsg, GameStateResponse, InstantiateMsg, QueryMsg, VerificationCountResponse,
 };
 use crate::state::{GameInfo, GAME_INFOS, GAME_STATES, VERIFICATION_STATE};
 use crate::types::{BaseState, BitMap256, Card, CardDelta, CompressedDeck, Groth16Proof};
@@ -59,12 +57,8 @@ pub fn execute(
 ) -> Result<Response, ContractError> {
     match msg {
         // ========== Game Flow Messages ==========
-        ExecuteMsg::CreateGame { num_players } => {
-            execute_create_game(deps, env, info, num_players)
-        }
-        ExecuteMsg::Register { game_id, callback } => {
-            execute_register(deps, env, info, game_id)
-        }
+        ExecuteMsg::CreateGame { num_players } => execute_create_game(deps, env, info, num_players),
+        ExecuteMsg::Register { game_id, callback } => execute_register(deps, env, info, game_id),
         ExecuteMsg::PlayerRegister {
             game_id,
             signing_addr,
@@ -72,9 +66,11 @@ pub fn execute(
             pk_y,
         } => execute_player_register(deps, env, info, game_id, signing_addr, pk_x, pk_y),
         ExecuteMsg::Shuffle { game_id, callback } => execute_shuffle(deps, env, info, game_id),
-        ExecuteMsg::PlayerShuffle { game_id, proof, deck } => {
-            execute_player_shuffle(deps, env, info, game_id, proof, deck)
-        }
+        ExecuteMsg::PlayerShuffle {
+            game_id,
+            proof,
+            deck,
+        } => execute_player_shuffle(deps, env, info, game_id, proof, deck),
         ExecuteMsg::DealCardsTo {
             game_id,
             cards,
@@ -86,7 +82,15 @@ pub fn execute(
             proofs,
             decrypted_cards,
             init_deltas,
-        } => execute_player_deal_cards(deps, env, info, game_id, proofs, decrypted_cards, init_deltas),
+        } => execute_player_deal_cards(
+            deps,
+            env,
+            info,
+            game_id,
+            proofs,
+            decrypted_cards,
+            init_deltas,
+        ),
         ExecuteMsg::OpenCards {
             game_id,
             player_id,
@@ -101,12 +105,14 @@ pub fn execute(
         } => execute_player_open_cards(deps, env, info, game_id, cards, proofs, decrypted_cards),
 
         // ========== Minimal Proof Verification Messages ==========
-        ExecuteMsg::VerifyShuffleProof { proof, public_inputs } => {
-            execute_verify_shuffle_proof(deps, proof, public_inputs)
-        }
-        ExecuteMsg::VerifyDecryptProof { proof, public_inputs } => {
-            execute_verify_decrypt_proof(deps, proof, public_inputs)
-        }
+        ExecuteMsg::VerifyShuffleProof {
+            proof,
+            public_inputs,
+        } => execute_verify_shuffle_proof(deps, proof, public_inputs),
+        ExecuteMsg::VerifyDecryptProof {
+            proof,
+            public_inputs,
+        } => execute_verify_decrypt_proof(deps, proof, public_inputs),
     }
 }
 
@@ -271,18 +277,17 @@ fn execute_player_shuffle(
     let old_deck = game_state.deck.compressed();
 
     // Build public inputs for verification
-    let nonce = Uint256::from(game_state.cur_player_index);
-    let public_inputs = shuffle_public_input(
-        &deck,
-        &old_deck,
-        &nonce,
-        &game_state.agg_pk.x,
-        &game_state.agg_pk.y,
-    )?;
+    let public_inputs =
+        shuffle_public_input(&deck, &old_deck, &game_state.agg_pk.x, &game_state.agg_pk.y)?;
 
     // Verify shuffle proof
     let proof_tuple = (proof.a.clone(), proof.b.clone(), proof.c.clone());
-    let verified = verify_shuffle_proof(deps.as_ref(), &proof_tuple, &public_inputs, "shuffle_encrypt")?;
+    let verified = verify_shuffle_proof(
+        deps.as_ref(),
+        &proof_tuple,
+        &public_inputs,
+        "shuffle_encrypt",
+    )?;
     if !verified {
         return Err(ContractError::InvalidProof);
     }
@@ -387,7 +392,8 @@ fn execute_player_deal_cards(
         public_inputs.push(delta.delta1.clone());
 
         let proof_tuple = (proof.a.clone(), proof.b.clone(), proof.c.clone());
-        let verified = verify_decrypt_proof(deps.as_ref(), &proof_tuple, &public_inputs, "decrypt")?;
+        let verified =
+            verify_decrypt_proof(deps.as_ref(), &proof_tuple, &public_inputs, "decrypt")?;
         if !verified {
             return Err(ContractError::InvalidProof);
         }
@@ -494,7 +500,8 @@ fn execute_player_open_cards(
         public_inputs.push(Uint256::zero());
 
         let proof_tuple = (proof.a.clone(), proof.b.clone(), proof.c.clone());
-        let verified = verify_decrypt_proof(deps.as_ref(), &proof_tuple, &public_inputs, "decrypt")?;
+        let verified =
+            verify_decrypt_proof(deps.as_ref(), &proof_tuple, &public_inputs, "decrypt")?;
         if !verified {
             return Err(ContractError::InvalidProof);
         }
@@ -529,7 +536,12 @@ fn execute_verify_shuffle_proof(
     public_inputs: Vec<Uint256>,
 ) -> Result<Response, ContractError> {
     let proof_tuple = (proof.a, proof.b, proof.c);
-    let verified = verify_shuffle_proof(deps.as_ref(), &proof_tuple, &public_inputs, "shuffle_encrypt")?;
+    let verified = verify_shuffle_proof(
+        deps.as_ref(),
+        &proof_tuple,
+        &public_inputs,
+        "shuffle_encrypt",
+    )?;
 
     if !verified {
         return Err(ContractError::InvalidProof);
@@ -542,7 +554,10 @@ fn execute_verify_shuffle_proof(
     Ok(Response::new()
         .add_attribute("action", "verify_shuffle_proof")
         .add_attribute("result", "success")
-        .add_attribute("total_shuffle_verifications", state.shuffle_verifications.to_string()))
+        .add_attribute(
+            "total_shuffle_verifications",
+            state.shuffle_verifications.to_string(),
+        ))
 }
 
 fn execute_verify_decrypt_proof(
@@ -564,7 +579,10 @@ fn execute_verify_decrypt_proof(
     Ok(Response::new()
         .add_attribute("action", "verify_decrypt_proof")
         .add_attribute("result", "success")
-        .add_attribute("total_decrypt_verifications", state.decrypt_verifications.to_string()))
+        .add_attribute(
+            "total_decrypt_verifications",
+            state.decrypt_verifications.to_string(),
+        ))
 }
 
 // ========== Queries ==========

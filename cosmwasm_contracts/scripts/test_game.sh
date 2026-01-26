@@ -43,8 +43,9 @@ echo "Player 2: $PLAYER2"
 echo ""
 
 # Game configuration
-GAME_ID=${GAME_ID:-3}
-NUM_PLAYERS=2
+# TODO: Set this manually before running the script
+GAME_ID="19"
+NUM_PLAYERS=1
 
 # Function to execute transaction
 execute_tx() {
@@ -73,36 +74,48 @@ query_contract() {
 }
 
 # ============================================================================
-# Step 1: CreateGame (already done if game exists, skip if needed)
+# Step 1: CreateGame
 # ============================================================================
 echo "=== Step 1: CreateGame ==="
 echo "Creating game with $NUM_PLAYERS players..."
-# CREATE_MSG='{"create_game": {"num_players": '"$NUM_PLAYERS"'}}'
+echo "NOTE: After running this, extract the game_id from the transaction logs"
+echo "      and set it in the GAME_ID variable at the top of this script."
+echo ""
+CREATE_MSG='{"create_game": {"num_players": '"$NUM_PLAYERS"'}}'
 # execute_tx "$PLAYER1" "$CREATE_MSG"
 
-# sleep 10
+# Verify GAME_ID is set
+if [ -z "$GAME_ID" ]; then
+    echo "WARNING: GAME_ID is not set! Please extract it from the transaction"
+    echo "         logs above and set it in the GAME_ID variable at line 47."
+    exit 1
+fi
+
+echo "✓ Using Game ID: $GAME_ID"
+
+sleep 10
 
 # Query game state to verify
 echo "Verifying game creation..."
 GAME_STATE_MSG='{"game_state": {"game_id": '"$GAME_ID"'}}'
 # query_contract "$GAME_STATE_MSG"
 
-# sleep 10
+sleep 10
 
 # ============================================================================
 # Step 2: Register (Start registration phase)
 # ============================================================================
 echo "=== Step 2: Register (Start Registration Phase) ==="
 REGISTER_MSG='{"register": {"game_id": '"$GAME_ID"'}}'
-# execute_tx "$PLAYER1" "$REGISTER_MSG"
+execute_tx "$PLAYER1" "$REGISTER_MSG"
 
-# sleep 10
+sleep 10
 
 # Query game state to check current state
 echo "Checking game state after Register..."
-# query_contract "$GAME_STATE_MSG"
+query_contract "$GAME_STATE_MSG"
 
-# sleep 10
+sleep 10
 
 # ============================================================================
 # Step 3: PlayerRegister (Player 1)
@@ -111,8 +124,8 @@ echo "=== Step 3: PlayerRegister (Player 1) ==="
 echo "Player 1 registering with public key..."
 
 # Example public key for Player 1 (replace with actual values from key generation)
-PK1_X="10031262171927540148667355526369034398030886437092045105752248699557385197826"
-PK1_Y="633281375905621697187330766174974863687049529291089048651929454608812697683"
+PK1_X="16440307615439000442269603422082392822244204358820265832909555845493953212588"
+PK1_Y="6926910694785434576864816651706053545127762647763807566133344066895125573895"
 
 PLAYER1_REGISTER_MSG='{"player_register": {
     "game_id": '"$GAME_ID"',
@@ -120,9 +133,9 @@ PLAYER1_REGISTER_MSG='{"player_register": {
     "pk_x": "'"$PK1_X"'",
     "pk_y": "'"$PK1_Y"'"
 }}'
-# execute_tx "$PLAYER1" "$PLAYER1_REGISTER_MSG"
+execute_tx "$PLAYER1" "$PLAYER1_REGISTER_MSG"
 
-# sleep 10
+sleep 10
 
 # ============================================================================
 # Step 4: PlayerRegister (Player 2)
@@ -146,18 +159,18 @@ PLAYER2_REGISTER_MSG='{"player_register": {
 
 # Query game state to check registration status
 echo "Checking game state after all players registered..."
-# query_contract "$GAME_STATE_MSG"
+query_contract "$GAME_STATE_MSG"
 
-# sleep 3
+sleep 10
 
 # ============================================================================
 # Step 5: Shuffle (Initiate shuffle phase)
 # ============================================================================
 echo "=== Step 5: Shuffle (Initiate Shuffle Phase) ==="
 SHUFFLE_MSG='{"shuffle": {"game_id": '"$GAME_ID"'}}'
-# execute_tx "$PLAYER1" "$SHUFFLE_MSG"
+execute_tx "$PLAYER1" "$SHUFFLE_MSG"
 
-# sleep 10
+sleep 10
 
 # Query current player index
 # echo "Checking current player index..."
@@ -323,17 +336,22 @@ execute_tx "$PLAYER1" "$DEAL_MSG"
 
 sleep 3
 
-echo "Dealing 5 cards to Player 2..."
-# Deal cards 5,6,7,8,9 (next 5 cards)
-# In hex: 0x3E0 = 992 decimal
-CARDS_BITMAP_P2="0x3e0"
+# Only deal to Player 2 if NUM_PLAYERS > 1
+if [ "$NUM_PLAYERS" -gt 1 ]; then
+    echo "Dealing 5 cards to Player 2..."
+    # Deal cards 5,6,7,8,9 (next 5 cards)
+    # In hex: 0x3E0 = 992 decimal
+    CARDS_BITMAP_P2="0x3e0"
 
-DEAL_MSG_P2='{"deal_cards_to": {
-    "game_id": '"$GAME_ID"',
-    "cards": "'"$CARDS_BITMAP_P2"'",
-    "player_id": 1
-}}'
-execute_tx "$PLAYER1" "$DEAL_MSG_P2"
+    DEAL_MSG_P2='{"deal_cards_to": {
+        "game_id": '"$GAME_ID"',
+        "cards": "'"$CARDS_BITMAP_P2"'",
+        "player_id": 1
+    }}'
+    execute_tx "$PLAYER1" "$DEAL_MSG_P2"
+else
+    echo "Skipping dealing to Player 2 (NUM_PLAYERS=$NUM_PLAYERS)"
+fi
 
 sleep 3
 
@@ -426,21 +444,37 @@ echo "=== Test Summary ==="
 echo "Game setup test completed!"
 echo ""
 echo "Executed steps:"
-echo "  1. CreateGame - Created game with $NUM_PLAYERS players"
+echo "  1. CreateGame - Created game with $NUM_PLAYERS players (Game ID: $GAME_ID)"
 echo "  2. Register - Started registration phase"
 echo "  3. PlayerRegister (Player 1) - Registered Player 1"
-echo "  4. PlayerRegister (Player 2) - Registered Player 2"
+
+if [ "$NUM_PLAYERS" -gt 1 ]; then
+    echo "  4. PlayerRegister (Player 2) - Registered Player 2"
+fi
+
 echo "  5. Shuffle - Started shuffle phase"
 echo "  6. PlayerShuffle - Skipped (requires real deck data)"
-echo "  7. PlayerShuffle - Skipped (requires real deck data)"
+
+if [ "$NUM_PLAYERS" -gt 1 ]; then
+    echo "  7. PlayerShuffle (Player 2) - Skipped (requires real deck data)"
+fi
+
 echo "  8. DealCardsTo - Dealt cards to Player 1"
-echo "  9. DealCardsTo - Dealt cards to Player 2"
+
+if [ "$NUM_PLAYERS" -gt 1 ]; then
+    echo "  9. DealCardsTo - Dealt cards to Player 2"
+fi
+
 echo "  10. PlayerDealCards - Skipped (requires real decryption data)"
 echo ""
 echo "Next Steps to Complete the Game:"
 echo "1. Generate actual ZK proofs using your circuits:"
 echo "   - Run shuffle_encrypt circuit for Player 1"
-echo "   - Run shuffle_encrypt circuit for Player 2"
+
+if [ "$NUM_PLAYERS" -gt 1 ]; then
+    echo "   - Run shuffle_encrypt circuit for Player 2"
+fi
+
 echo "   - Run decrypt circuit for each card being dealt"
 echo ""
 echo "2. Extract the required data:"
