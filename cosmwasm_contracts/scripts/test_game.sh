@@ -43,7 +43,7 @@ echo "Player 2: $PLAYER2"
 echo ""
 
 # Game configuration
-GAME_ID=${GAME_ID:-1}
+GAME_ID=${GAME_ID:-3}
 NUM_PLAYERS=2
 
 # Function to execute transaction
@@ -77,32 +77,32 @@ query_contract() {
 # ============================================================================
 echo "=== Step 1: CreateGame ==="
 echo "Creating game with $NUM_PLAYERS players..."
-CREATE_MSG='{"create_game": {"num_players": '"$NUM_PLAYERS"'}}'
-execute_tx "$PLAYER1" "$CREATE_MSG"
+# CREATE_MSG='{"create_game": {"num_players": '"$NUM_PLAYERS"'}}'
+# execute_tx "$PLAYER1" "$CREATE_MSG"
 
-sleep 10
+# sleep 10
 
 # Query game state to verify
 echo "Verifying game creation..."
 GAME_STATE_MSG='{"game_state": {"game_id": '"$GAME_ID"'}}'
-query_contract "$GAME_STATE_MSG"
+# query_contract "$GAME_STATE_MSG"
 
-sleep 10
+# sleep 10
 
 # ============================================================================
 # Step 2: Register (Start registration phase)
 # ============================================================================
 echo "=== Step 2: Register (Start Registration Phase) ==="
 REGISTER_MSG='{"register": {"game_id": '"$GAME_ID"'}}'
-execute_tx "$PLAYER1" "$REGISTER_MSG"
+# execute_tx "$PLAYER1" "$REGISTER_MSG"
 
-sleep 10
+# sleep 10
 
 # Query game state to check current state
 echo "Checking game state after Register..."
-query_contract "$GAME_STATE_MSG"
+# query_contract "$GAME_STATE_MSG"
 
-sleep 10
+# sleep 10
 
 # ============================================================================
 # Step 3: PlayerRegister (Player 1)
@@ -120,9 +120,9 @@ PLAYER1_REGISTER_MSG='{"player_register": {
     "pk_x": "'"$PK1_X"'",
     "pk_y": "'"$PK1_Y"'"
 }}'
-execute_tx "$PLAYER1" "$PLAYER1_REGISTER_MSG"
+# execute_tx "$PLAYER1" "$PLAYER1_REGISTER_MSG"
 
-sleep 10
+# sleep 10
 
 # ============================================================================
 # Step 4: PlayerRegister (Player 2)
@@ -140,37 +140,37 @@ PLAYER2_REGISTER_MSG='{"player_register": {
     "pk_x": "'"$PK2_X"'",
     "pk_y": "'"$PK2_Y"'"
 }}'
-execute_tx "$PLAYER2" "$PLAYER2_REGISTER_MSG"
+# execute_tx "$PLAYER2" "$PLAYER2_REGISTER_MSG"
 
-sleep 10
+# sleep 10
 
 # Query game state to check registration status
 echo "Checking game state after all players registered..."
-query_contract "$GAME_STATE_MSG"
+# query_contract "$GAME_STATE_MSG"
 
-sleep 3
+# sleep 3
 
 # ============================================================================
 # Step 5: Shuffle (Initiate shuffle phase)
 # ============================================================================
 echo "=== Step 5: Shuffle (Initiate Shuffle Phase) ==="
 SHUFFLE_MSG='{"shuffle": {"game_id": '"$GAME_ID"'}}'
-execute_tx "$PLAYER1" "$SHUFFLE_MSG"
+# execute_tx "$PLAYER1" "$SHUFFLE_MSG"
 
-sleep 10
+# sleep 10
 
 # Query current player index
 # echo "Checking current player index..."
 # CUR_PLAYER_MSG='{"cur_player_index": {"game_id": '"$GAME_ID"'}}'
 # query_contract "$CUR_PLAYER_MSG"
 
-sleep 10
+# sleep 10
 
 # ============================================================================
 # Step 6: PlayerShuffle (Player 1)
 # ============================================================================
 echo "=== Step 6: PlayerShuffle (Player 1) ==="
-echo "Loading proof data from $SCRIPT_DIR/data/shuffle_encrypt.json..."
+echo "Loading proof and deck data from $SCRIPT_DIR/data/shuffle_encrypt.json..."
 
 if [ -f "$SCRIPT_DIR/data/shuffle_encrypt.json" ]; then
     # Extract proof data from the file
@@ -190,43 +190,104 @@ if [ -f "$SCRIPT_DIR/data/shuffle_encrypt.json" ]; then
     PI_C_0=$(echo "$PROOF_DATA" | jq -r '.proof.pi_c[0]')
     PI_C_1=$(echo "$PROOF_DATA" | jq -r '.proof.pi_c[1]')
 
-    echo "Building PlayerShuffle message for Player 1..."
-    echo "NOTE: This requires actual deck data from your circuit output!"
-    echo "The x0 and x1 arrays should contain the shuffled deck card coordinates."
-    echo ""
-    echo "For a complete test, you need to:"
-    echo "1. Run your shuffle circuit to get the actual shuffled deck"
-    echo "2. Extract the 52 card coordinates (x0 and x1 arrays)"
-    echo "3. Generate selector bitmaps (BitMap256 format)"
-    echo ""
-    echo "Example structure (fill in actual values):"
+    echo "  ✓ Proof data extracted"
 
-    # Template for PlayerShuffle
-    cat <<'EOF'
+    # Parse the compressedDeck (it's a stringified JSON)
+    echo "  Parsing compressedDeck..."
+    COMPRESSED_DECK_STR=$(echo "$PROOF_DATA" | jq -r '.compressedDeck')
+
+    # Create a temporary file for the parsed compressed deck
+    echo "$COMPRESSED_DECK_STR" > /tmp/compressed_deck_parsed.json
+
+    # Extract the arrays from the parsed compressed deck
+    X0_ARRAY=$(cat /tmp/compressed_deck_parsed.json | jq -c '.X0')
+    X1_ARRAY=$(cat /tmp/compressed_deck_parsed.json | jq -c '.X1')
+
+    # selector has 2 elements: selector[0] and selector[1] correspond to selector0 and selector1
+    SELECTOR_0=$(cat /tmp/compressed_deck_parsed.json | jq -r '.selector[0]')
+    SELECTOR_1=$(cat /tmp/compressed_deck_parsed.json | jq -r '.selector[1]')
+
+    # Count the number of cards to determine deck config
+    NUM_CARDS=$(echo "$COMPRESSED_DECK_STR" | jq '.X0 | length')
+    echo "  ✓ Compressed deck parsed (number of cards: $NUM_CARDS)"
+
+    # Determine deck config based on number of cards
+    # Note: Must use lowercase with underscores to match Rust enum variants
+    if [ "$NUM_CARDS" = "5" ]; then
+        DECK_CONFIG="deck5_card"
+    elif [ "$NUM_CARDS" = "30" ]; then
+        DECK_CONFIG="deck30_card"
+    elif [ "$NUM_CARDS" = "52" ]; then
+        DECK_CONFIG="deck52_card"
+    else
+        echo "  Warning: Unknown number of cards: $NUM_CARDS, defaulting to deck52_card"
+        DECK_CONFIG="deck52_card"
+    fi
+
+    echo "  Deck config: $DECK_CONFIG"
+    echo ""
+
+    # Build the PlayerShuffle message
+    echo "Building PlayerShuffle message for Player 1..."
+
+    # Create the message JSON
+    cat > /tmp/player_shuffle_msg.json <<EOF
 {
   "player_shuffle": {
-    "game_id": 1,
+    "game_id": $GAME_ID,
     "proof": {
-      "a": ["pi_a_0", "pi_a_1"],
+      "a": ["$PI_A_0", "$PI_A_1"],
       "b": [
-        ["pi_b_0_0", "pi_b_0_1"],
-        ["pi_b_1_0", "pi_b_1_1"]
+        ["$PI_B_0_0", "$PI_B_0_1"],
+        ["$PI_B_1_0", "$PI_B_1_1"]
       ],
-      "c": ["pi_c_0", "pi_c_1"]
+      "c": ["$PI_C_0", "$PI_C_1"]
     },
     "deck": {
-      "config": "deck52_card",
-      "x0": [ /* 52 Uint256 values for card x0 coordinates */ ],
-      "x1": [ /* 52 Uint256 values for card x1 coordinates */ ],
-      "selector0": "bitmap_uint256_0",
-      "selector1": "bitmap_uint256_1"
+      "config": "$DECK_CONFIG",
+      "x0": $X0_ARRAY,
+      "x1": $X1_ARRAY,
+      "selector0": {"data": "$SELECTOR_0"},
+      "selector1": {"data": "$SELECTOR_1"}
     }
   }
 }
 EOF
+
+    echo "  ✓ Message built"
     echo ""
-    echo "Skipping PlayerShuffle execution - requires real deck data."
-    echo "Update this script with actual deck values from your circuit."
+
+    # Display the message (pretty printed)
+    echo "Message preview:"
+    jq '.' /tmp/player_shuffle_msg.json
+    echo ""
+
+    # Confirm before executing
+    read -p "Execute PlayerShuffle transaction for Player 1? (y/n) " -n 1 -r
+    echo ""
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        # Read the message content
+        MSG_CONTENT=$(cat /tmp/player_shuffle_msg.json)
+
+        xiond tx wasm execute "$CONTRACT_ADDRESS" \
+            "$MSG_CONTENT" \
+            --from "$PLAYER1" \
+            --gas-prices 0.025uxion \
+            --gas auto \
+            --gas-adjustment 1.3 \
+            -y \
+            --node "$RPC_URL" \
+            --chain-id "$CHAIN_ID"
+
+        echo ""
+        echo "✓ PlayerShuffle transaction submitted for Player 1!"
+    else
+        echo "Skipping PlayerShuffle execution for Player 1."
+    fi
+
+    # Clean up temporary files
+    rm -f /tmp/compressed_deck_parsed.json
+    rm -f /tmp/player_shuffle_msg.json
 else
     echo "Warning: shuffle_encrypt.json not found at $SCRIPT_DIR/data/shuffle_encrypt.json"
 fi

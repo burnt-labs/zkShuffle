@@ -6,7 +6,7 @@ use crate::msg::{ExecuteMsg, InstantiateMsg};
 use crate::state::GAME_STATES;
 use crate::types::{BaseState, Card, CardDelta, CompressedDeck, DeckConfig, Groth16Proof};
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-use cosmwasm_std::{DepsMut, StdError, Uint256};
+use cosmwasm_std::{to_json_binary, Binary, DepsMut, StdError, Uint256};
 use std::str::FromStr;
 
 // // Helper to create a dummy CompressedDeck for testing
@@ -22,12 +22,7 @@ fn mock_compressed_deck(config: DeckConfig, fill_val: u128) -> CompressedDeck {
 }
 
 fn instantiate_contract(mut deps: DepsMut) {
-    let msg = InstantiateMsg {
-        decrypt_verifier: "decrypt".to_string(),
-        deck5_verifier: "deck5".to_string(),
-        deck30_verifier: "deck30".to_string(),
-        deck52_verifier: "deck52".to_string(),
-    };
+    let msg = InstantiateMsg {};
     let info = mock_info("creator", &[]);
     contract::instantiate(deps, mock_env(), info, msg).unwrap();
 }
@@ -382,10 +377,7 @@ fn test_basic_game_flow_shuffle_and_deal() {
         deps.as_mut(),
         env.clone(),
         mock_info(owner, &[]),
-        ExecuteMsg::CreateGame {
-            num_players: 2,
-            deck_config,
-        },
+        ExecuteMsg::CreateGame { num_players: 2 },
     )
     .unwrap();
 
@@ -408,7 +400,7 @@ fn test_basic_game_flow_shuffle_and_deal() {
         mock_info(player0, &[]),
         ExecuteMsg::PlayerRegister {
             game_id: 1,
-            signing_addr: "player0-sign".to_string(),
+            signing_addr: player0.to_string(),
             pk_x: pk_x.clone(),
             pk_y: pk_y.clone(),
         },
@@ -478,7 +470,7 @@ fn test_basic_game_flow_shuffle_and_deal() {
         mock_info(owner, &[]),
         ExecuteMsg::DealCardsTo {
             game_id: 1,
-            cards: cards.clone(),
+            cards: to_json_binary(&cards).unwrap(),
             player_id: 0,
             callback: None,
         },
@@ -533,10 +525,7 @@ fn test_open_cards_flow() {
         deps.as_mut(),
         env.clone(),
         mock_info(owner, &[]),
-        ExecuteMsg::CreateGame {
-            num_players: 2,
-            deck_config,
-        },
+        ExecuteMsg::CreateGame { num_players: 2 },
     )
     .unwrap();
     contract::execute(
@@ -558,7 +547,7 @@ fn test_open_cards_flow() {
         mock_info(player0, &[]),
         ExecuteMsg::PlayerRegister {
             game_id: 1,
-            signing_addr: "player0-sign".to_string(),
+            signing_addr: player0.to_string(),
             pk_x: pk_x.clone(),
             pk_y: pk_y.clone(),
         },
@@ -619,7 +608,7 @@ fn test_open_cards_flow() {
         mock_info(owner, &[]),
         ExecuteMsg::DealCardsTo {
             game_id: 1,
-            cards: cards.clone(),
+            cards: to_json_binary(&cards).unwrap(),
             player_id: 0,
             callback: None,
         },
@@ -662,7 +651,7 @@ fn test_open_cards_flow() {
         mock_info(player0, &[]),
         ExecuteMsg::PlayerOpenCards {
             game_id: 1,
-            cards,
+            cards: to_json_binary(&cards).unwrap(),
             proofs: vec![dummy_proof()],
             decrypted_cards: vec![dummy_card(99, 100)],
         },
