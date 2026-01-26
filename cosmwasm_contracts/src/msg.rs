@@ -103,6 +103,9 @@ pub enum QueryMsg {
 
     #[returns(GameStateResponse)]
     GameState { game_id: u64 },
+
+    #[returns(DeckResponse)]
+    Deck { game_id: u64 },
 }
 
 #[cw_serde]
@@ -117,4 +120,16 @@ pub struct GameStateResponse {
     pub state: String,
     pub cur_player_index: u32,
     pub num_players: usize,
+}
+
+#[cw_serde]
+pub struct DeckResponse {
+    pub game_id: u64,
+    pub config: String,
+    pub x0: Vec<Uint256>,
+    pub x1: Vec<Uint256>,
+    pub y0: Vec<Uint256>,
+    pub y1: Vec<Uint256>,
+    pub selector0: String,
+    pub selector1: String,
 }

@@ -8,7 +8,7 @@ use crate::curve::point_add;
 use crate::deck::shuffle_public_input;
 use crate::error::ContractError;
 use crate::msg::{
-    ExecuteMsg, GameStateResponse, InstantiateMsg, QueryMsg, VerificationCountResponse,
+    DeckResponse, ExecuteMsg, GameStateResponse, InstantiateMsg, QueryMsg, VerificationCountResponse,
 };
 use crate::state::{GameInfo, GAME_INFOS, GAME_STATES, VERIFICATION_STATE};
 use crate::types::{BaseState, BitMap256, Card, CardDelta, CompressedDeck, Groth16Proof};
@@ -592,6 +592,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::VerificationCount {} => to_json_binary(&query_verification_count(deps)?),
         QueryMsg::GameState { game_id } => to_json_binary(&query_game_state(deps, game_id)?),
+        QueryMsg::Deck { game_id } => to_json_binary(&query_deck(deps, game_id)?),
     }
 }
 
@@ -610,6 +611,20 @@ fn query_game_state(deps: Deps, game_id: u64) -> StdResult<GameStateResponse> {
         state: format!("{:?}", game_state.state),
         cur_player_index: game_state.cur_player_index,
         num_players: game_state.player_addrs.len(),
+    })
+}
+
+fn query_deck(deps: Deps, game_id: u64) -> StdResult<DeckResponse> {
+    let game_state = GAME_STATES.load(deps.storage, game_id)?;
+    Ok(DeckResponse {
+        game_id,
+        config: format!("{:?}", game_state.deck.config),
+        x0: game_state.deck.x0,
+        x1: game_state.deck.x1,
+        y0: game_state.deck.y0,
+        y1: game_state.deck.y1,
+        selector0: game_state.deck.selector0.data.to_string(),
+        selector1: game_state.deck.selector1.data.to_string(),
     })
 }
 
