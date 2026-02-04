@@ -4,8 +4,6 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{StdError, StdResult, Uint256};
 use once_cell::sync::Lazy;
 
-use crate::curve::mod_mul;
-use crate::curve::BABY_JUB_Q;
 use crate::types::{BitMap256, CompressedDeck, DeckConfig};
 
 static INIT_X1: Lazy<Vec<Uint256>> = Lazy::new(|| {
@@ -310,6 +308,7 @@ fn selector_for(deck_size: u32, base: u128) -> BitMap256 {
 pub fn shuffle_public_input(
     enc: &CompressedDeck,
     old: &CompressedDeck,
+    nonce: &Uint256,
     agg_pk_x: &Uint256,
     agg_pk_y: &Uint256,
 ) -> StdResult<Vec<Uint256>> {
@@ -322,10 +321,7 @@ pub fn shuffle_public_input(
     let deck_size = enc.config.num_cards() as usize;
     let mut input = Vec::with_capacity(7 + deck_size * 4);
 
-    // Circuit output: dummy_output = pk[0] * pk[1] mod BABY_JUB_Q
-    let circuit_output = mod_mul(agg_pk_x, agg_pk_y, &BABY_JUB_Q);
-    input.push(circuit_output);
-
+    input.push(nonce.clone());
     input.push(agg_pk_x.clone());
     input.push(agg_pk_y.clone());
     for i in 0..deck_size {

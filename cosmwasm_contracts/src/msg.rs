@@ -93,6 +93,12 @@ pub enum ExecuteMsg {
         proof: Groth16Proof,
         public_inputs: Vec<Uint256>,
     },
+
+    /// Debug: store computed shuffle public inputs for inspection
+    StoreShufflePublicInputs {
+        game_id: u64,
+        deck: CompressedDeck,
+    },
 }
 
 #[cw_serde]
@@ -106,6 +112,9 @@ pub enum QueryMsg {
 
     #[returns(DeckResponse)]
     Deck { game_id: u64 },
+
+    #[returns(PublicInputsResponse)]
+    PublicInputs { game_id: u64 },
 }
 
 #[cw_serde]
@@ -132,4 +141,10 @@ pub struct DeckResponse {
     pub y1: Vec<Uint256>,
     pub selector0: String,
     pub selector1: String,
+}
+
+#[cw_serde]
+pub struct PublicInputsResponse {
+    pub game_id: u64,
+    pub public_inputs: Vec<Uint256>,
 }

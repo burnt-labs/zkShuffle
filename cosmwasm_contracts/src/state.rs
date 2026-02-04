@@ -1,7 +1,7 @@
 //! State for zkShuffle card game and proof verification tracking
 
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::Addr;
+use cosmwasm_std::{Addr, Uint256};
 use cw_storage_plus::{Item, Map};
 
 use crate::deck::Deck;
@@ -24,6 +24,8 @@ impl VerificationState {
 }
 
 pub const VERIFICATION_STATE: Item<VerificationState> = Item::new("verification_state");
+/// Debug storage for capturing public inputs per game
+pub const DEBUG_PUBLIC_INPUTS: Map<u64, Vec<Uint256>> = Map::new("debug_public_inputs");
 
 /// Game info - static metadata set at creation
 #[cw_serde]
@@ -49,6 +51,8 @@ pub struct ShuffleGameState {
     pub player_pks: Vec<Card>,
     /// Aggregated public key for encryption
     pub agg_pk: Card,
+    /// Nonce derived from aggregated pk (agg_pk.x * agg_pk.y mod Q)
+    pub nonce: Uint256,
     /// Number of cards in each player's hand
     pub player_hand: Vec<u32>,
     /// Current opening round (for reveal phase)
@@ -68,6 +72,7 @@ impl ShuffleGameState {
                 x: cosmwasm_std::Uint256::zero(),
                 y: cosmwasm_std::Uint256::one(), // Identity element
             },
+            nonce: cosmwasm_std::Uint256::zero(),
             player_hand: vec![0; num_players as usize],
             opening: 0,
         }

@@ -4,13 +4,14 @@ use cosmwasm_std::{
     to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult, Uint256,
 };
 
-use crate::curve::point_add;
+use crate::curve::{mod_mul, point_add, BABY_JUB_Q};
 use crate::deck::shuffle_public_input;
 use crate::error::ContractError;
 use crate::msg::{
-    DeckResponse, ExecuteMsg, GameStateResponse, InstantiateMsg, QueryMsg, VerificationCountResponse,
+    DeckResponse, ExecuteMsg, GameStateResponse, InstantiateMsg, PublicInputsResponse, QueryMsg,
+    VerificationCountResponse,
 };
-use crate::state::{GameInfo, GAME_INFOS, GAME_STATES, VERIFICATION_STATE};
+use crate::state::{GameInfo, DEBUG_PUBLIC_INPUTS, GAME_INFOS, GAME_STATES, VERIFICATION_STATE};
 use crate::types::{BaseState, BitMap256, Card, CardDelta, CompressedDeck, Groth16Proof};
 use crate::zkshuffle::{verify_decrypt_proof, verify_shuffle_proof};
 
@@ -113,6 +114,9 @@ pub fn execute(
             proof,
             public_inputs,
         } => execute_verify_decrypt_proof(deps, proof, public_inputs),
+        ExecuteMsg::StoreShufflePublicInputs { game_id, deck } => {
+            execute_store_shuffle_public_inputs(deps, env, info, game_id, deck)
+        }
     }
 }
 
@@ -213,6 +217,10 @@ fn execute_player_register(
         x: new_agg.0,
         y: new_agg.1,
     };
+    // Set nonce once all players have registered (agg_pk.x * agg_pk.y mod Q)
+    if game_state.is_full(game_info.num_players) {
+        game_state.nonce = mod_mul(&game_state.agg_pk.x, &game_state.agg_pk.y, &BABY_JUB_Q);
+    }
 
     GAME_STATES.save(deps.storage, game_id, &game_state)?;
 
@@ -277,8 +285,13 @@ fn execute_player_shuffle(
     let old_deck = game_state.deck.compressed();
 
     // Build public inputs for verification
-    let public_inputs =
-        shuffle_public_input(&deck, &old_deck, &game_state.agg_pk.x, &game_state.agg_pk.y)?;
+    let public_inputs = shuffle_public_input(
+        &deck,
+        &old_deck,
+        &game_state.nonce,
+        &game_state.agg_pk.x,
+        &game_state.agg_pk.y,
+    )?;
 
     // Verify shuffle proof
     let proof_tuple = (proof.a.clone(), proof.b.clone(), proof.c.clone());
@@ -310,6 +323,47 @@ fn execute_player_shuffle(
         .add_attribute("player", info.sender)
         .add_attribute("cur_player_index", game_state.cur_player_index.to_string())
         .add_attribute("back_to_start", back_to_start.to_string()))
+}
+
+fn execute_store_shuffle_public_inputs(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    game_id: u64,
+    deck: CompressedDeck,
+) -> Result<Response, ContractError> {
+    let game_info = GAME_INFOS.load(deps.storage, game_id)?;
+    let game_state = GAME_STATES.load(deps.storage, game_id)?;
+    ensure_state!(game_state, game_id, BaseState::Shuffle);
+
+    // Check if it's this player's turn
+    let current_player = game_state
+        .current_player()
+        .ok_or(ContractError::NotPlayersTurn { game_id })?;
+    if current_player != &info.sender {
+        return Err(ContractError::NotPlayersTurn { game_id });
+    }
+
+    // Get old deck for verification
+    let old_deck = game_state.deck.compressed();
+
+    // Build public inputs for verification
+    let public_inputs = shuffle_public_input(
+        &deck,
+        &old_deck,
+        &game_state.nonce,
+        &game_state.agg_pk.x,
+        &game_state.agg_pk.y,
+    )?;
+
+    DEBUG_PUBLIC_INPUTS.save(deps.storage, game_id, &public_inputs)?;
+
+    Ok(Response::new()
+        .add_attribute("action", "store_shuffle_public_inputs")
+        .add_attribute("game_id", game_id.to_string())
+        .add_attribute("player", info.sender)
+        .add_attribute("len", public_inputs.len().to_string())
+        .add_attribute("owner", game_info.owner))
 }
 
 fn execute_deal_cards_to(
@@ -505,6 +559,9 @@ fn execute_player_open_cards(
         if !verified {
             return Err(ContractError::InvalidProof);
         }
+
+        //if decrypted_card greater than state.minimumCard
+        // transfer 10 xion here
     }
 
     // Update hand count
@@ -593,6 +650,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::VerificationCount {} => to_json_binary(&query_verification_count(deps)?),
         QueryMsg::GameState { game_id } => to_json_binary(&query_game_state(deps, game_id)?),
         QueryMsg::Deck { game_id } => to_json_binary(&query_deck(deps, game_id)?),
+        QueryMsg::PublicInputs { game_id } => to_json_binary(&query_public_inputs(deps, game_id)?),
     }
 }
 
@@ -625,6 +683,16 @@ fn query_deck(deps: Deps, game_id: u64) -> StdResult<DeckResponse> {
         y1: game_state.deck.y1,
         selector0: game_state.deck.selector0.data.to_string(),
         selector1: game_state.deck.selector1.data.to_string(),
+    })
+}
+
+fn query_public_inputs(deps: Deps, game_id: u64) -> StdResult<PublicInputsResponse> {
+    let public_inputs = DEBUG_PUBLIC_INPUTS
+        .may_load(deps.storage, game_id)?
+        .unwrap_or_default();
+    Ok(PublicInputsResponse {
+        game_id,
+        public_inputs,
     })
 }
 
