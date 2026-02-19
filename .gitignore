@@ -22,6 +22,7 @@ witness_calculator.js
 *_constraints.json
 scripts/types/
 .DS_STORE
+.idea/
 
 # circuits
 *.vkey.json
