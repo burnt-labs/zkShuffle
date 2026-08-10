@@ -12,16 +12,16 @@ jobs:
 
     strategy:
       matrix:
-        node-version: [16.17.0]
+        node-version: [24.19.0]
 
     steps:
       - name: check out git repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
         with:
           lfs: true
 
       - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ matrix.node-version }}
 

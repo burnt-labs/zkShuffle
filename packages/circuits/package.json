@@ -11,7 +11,7 @@
     "@typechain/hardhat": "^6.1.4",
     "@types/chai": "^4.3.4",
     "@types/mocha": "^10.0.0",
-    "@types/node": "^18.11.9",
+    "@types/node": "^24.13.3",
     "@zk-shuffle/proof": "1.0.0",
     "chai": "^4.3.7",
     "circom_tester": "^0.0.19",
@@ -25,7 +25,7 @@
     "snarkjs": "^0.7.0",
     "ts-node": "^10.9.1",
     "typechain": "^8.1.1",
-    "typescript": "^4.9.3"
+    "typescript": "^5.9.3"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
