@@ -11,7 +11,7 @@
     "@typechain/hardhat": "^6.1.4",
     "@types/chai": "^4.3.4",
     "@types/mocha": "^10.0.0",
-    "@types/node": "^18.11.9",
+    "@types/node": "^24.13.3",
     "@zk-shuffle/proof": "1.0.0",
     "chai": "^4.3.7",
     "circom_tester": "^0.0.19",

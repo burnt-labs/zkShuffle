@@ -12,7 +12,7 @@
     "@typechain/hardhat": "^6.1.4",
     "@types/chai": "^4.3.4",
     "@types/mocha": "^10.0.0",
-    "@types/node": "^18.11.9",
+    "@types/node": "^24.13.3",
     "chai": "^4.3.7",
     "circomlibjs-0-1-7": "npm:circomlibjs@^0.1.7",
     "ethereum-waffle": "^3.4.4",
